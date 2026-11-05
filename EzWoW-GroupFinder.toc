@@ -1,4 +1,5 @@
 ## Interface: 16001
+## X-Curse-Project-ID: 1785723
 ## Title: EzWoW - Group Finder
 ## Title-enUS: EzWoW - Group Finder
 ## Title-koKR: EzWoW - Group Finder
