@@ -1,0 +1,38 @@
+## Interface: 16001
+## Title: EzWoW - Group Finder
+## Title-enUS: EzWoW - Group Finder
+## Title-koKR: EzWoW - Group Finder
+## Title-deDE: EzWoW - Group Finder
+## Title-frFR: EzWoW - Group Finder
+## Title-esES: EzWoW - Group Finder
+## Title-esMX: EzWoW - Group Finder
+## Title-ruRU: EzWoW - Group Finder
+## Title-zhCN: EzWoW - Group Finder
+## Title-zhTW: EzWoW - Group Finder
+## Notes: Collects group posts from chat by dungeon and helps you post your own. (/ezgf)
+## Notes-enUS: Collects group posts from chat by dungeon and helps you post your own. (/ezgf)
+## Notes-koKR: 채팅에 올라온 파티 모집 글을 던전별로 모아 보여 주고, 모집 글을 쉽게 써서 보냅니다. (/ezgf, /파티찾기)
+## Notes-deDE: Sammelt Gruppenbeiträge aus dem Chat nach Dungeon und hilft beim Schreiben eigener Beiträge. (/ezgf)
+## Notes-frFR: Rassemble les annonces de groupe du chat par donjon et aide à rédiger les vôtres. (/ezgf)
+## Notes-esES: Reúne los anuncios de grupo del chat por mazmorra y te ayuda a escribir los tuyos. (/ezgf)
+## Notes-esMX: Reúne los anuncios de grupo del chat por mazmorra y te ayuda a escribir los tuyos. (/ezgf)
+## Notes-ruRU: Собирает объявления о группах из чата по подземельям и помогает написать своё. (/ezgf)
+## Notes-zhCN: 按副本整理聊天中的组队信息，并帮助你轻松发布招募。(/ezgf)
+## Notes-zhTW: 按地城整理聊天中的組隊訊息，並幫助你輕鬆發佈招募。(/ezgf)
+## Author: qqhrqqhr2
+## Version: 1.0.0
+## Category: EzWoW
+## IconTexture: Interface\AddOns\EzWoW-GroupFinder\Media\Icon
+## SavedVariables: EzWoW_GroupFinderDB
+
+Core\Init.lua
+Core\Locales.lua
+Core\UIKit.lua
+Data\Dungeons.lua
+Modules\Collector.lua
+Modules\Channels.lua
+Modules\Composer.lua
+UI\LanguageDropdown.lua
+UI\MainWindow.lua
+UI\Launcher.lua
+UI\OptionsWindow.lua
