@@ -21,7 +21,7 @@
 ## Notes-zhCN: 按副本整理聊天中的组队信息，并帮助你轻松发布招募。(/ezgf)
 ## Notes-zhTW: 按地城整理聊天中的組隊訊息，並幫助你輕鬆發佈招募。(/ezgf)
 ## Author: qqhrqqhr2
-## Version: 1.0.0
+## Version: 1.0.1
 ## Category: EzWoW
 ## IconTexture: Interface\AddOns\EzWoW-GroupFinder\Media\Icon
 ## SavedVariables: EzWoW_GroupFinderDB
