@@ -377,12 +377,39 @@ local function shouldAlert(post, previous)
     return false
 end
 
-local function alert(post)
-    if ns.MainWindowShown and ns.MainWindowShown() then return end
+-- Chat lines printed during combat can taint the chat history, so alerts that arrive in
+-- combat are printed after it (only the newest few, and only posts that still exist).
+local pendingAlerts = {}
+
+local function printAlert(post)
     local names = {}
     for _, key in ipairs(post.keys) do names[#names + 1] = ns:GetDungeonName(key) end
     local link = "|Hplayer:" .. post.sender .. "|h[" .. post.shortName .. "]|h"
     ns.Print(string.format(ns:L("alertMsg"), table.concat(names, " / ")) .. " " .. link .. ": " .. post.text)
+end
+
+function ns.FlushPendingAlerts()
+    if InCombatLockdown() then return end
+    local list = pendingAlerts
+    pendingAlerts = {}
+    for _, post in ipairs(list) do
+        if postBySender[post.sender] == post and not (ns.MainWindowShown and ns.MainWindowShown()) then
+            printAlert(post)
+        end
+    end
+end
+
+local function alert(post)
+    if ns.MainWindowShown and ns.MainWindowShown() then return end
+    if InCombatLockdown() then
+        for i = #pendingAlerts, 1, -1 do
+            if pendingAlerts[i].sender == post.sender then tremove(pendingAlerts, i) end
+        end
+        pendingAlerts[#pendingAlerts + 1] = post
+        while #pendingAlerts > 3 do tremove(pendingAlerts, 1) end
+    else
+        printAlert(post)
+    end
     if ns.db.alertSound then
         local sound = SOUNDKIT and (SOUNDKIT.TELL_MESSAGE or SOUNDKIT.IG_PLAYER_INVITE)
         if sound then pcall(PlaySound, sound, "Master") end
@@ -466,9 +493,13 @@ function ns.StartCollector()
         pcall(frame.RegisterEvent, frame, event)
     end
     pcall(frame.RegisterEvent, frame, "PLAYER_LEVEL_UP")
+    pcall(frame.RegisterEvent, frame, "PLAYER_REGEN_ENABLED")
     frame:SetScript("OnEvent", function(_, event, ...)
         if event == "PLAYER_LEVEL_UP" then
             notify()
+            return
+        elseif event == "PLAYER_REGEN_ENABLED" then
+            pcall(ns.FlushPendingAlerts)
             return
         end
         local ok, err = pcall(onChat, event, ...)

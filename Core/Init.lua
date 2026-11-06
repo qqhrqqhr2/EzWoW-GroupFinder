@@ -137,9 +137,18 @@ function ns.PlayerName()
     first, second = ok and ns.SafeString(first) or "", ok and ns.SafeString(second) or nil
     if second and second ~= "" then
         local okRealm, realm = pcall(GetRealmName)
-        if not (okRealm and realm == second) then return first .. " " .. second end
+        realm = okRealm and ns.SafeString(realm) or nil
+        if realm ~= second then return first .. ns.SurnameSeparator() .. second end
     end
     return first
+end
+
+-- Separator between first name and surname (the client's own constant when it has one).
+function ns.SurnameSeparator()
+    local consts = Constants and Constants.CharacterNameSeparatorConsts
+    local sep = consts and consts.CHARACTERNAME_SURNAME_SEPARATOR
+    if type(sep) == "string" and sep ~= "" and not ns.IsSecret(sep) then return sep end
+    return " "
 end
 
 -- True when a chat sender is this character (GUID first, then the name with or without surname).
