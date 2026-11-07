@@ -67,7 +67,7 @@ function ns:ToggleOptions()
     local S = ns.Style
     local db = self.db
     configFrame = CreateFrame("Frame", "EzWoWGroupFinderConfig", UIParent, "BackdropTemplate")
-    configFrame:SetSize(420, 692)
+    configFrame:SetSize(420, 780)
     configFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     configFrame:SetFrameStrata("FULLSCREEN_DIALOG")
     configFrame:SetToplevel(true)
@@ -167,11 +167,16 @@ function ns:ToggleOptions()
     watchHint:SetJustifyH("LEFT")
     watchHint:SetTextColor(rgba(S.textMuted))
 
+    -- 4. Greetings in the party
+    section("secGreet", -566)
+    option("greetSelf", "optGreetSelf", -590)
+    option("greetWelcome", "optGreetWelcome", -616)
+
     -- language & blocked players
     local langBtn = UIKit:CreateButton(configFrame, 187, 28, "")
-    langBtn:SetPoint("TOPLEFT", 20, -562)
+    langBtn:SetPoint("TOPLEFT", 20, -652)
     local unblockBtn = UIKit:CreateButton(configFrame, 187, 28, "")
-    unblockBtn:SetPoint("TOPLEFT", 213, -562)
+    unblockBtn:SetPoint("TOPLEFT", 213, -652)
 
     -- bottom buttons
     local resetBtn = UIKit:CreateButton(configFrame, 185, 33, "")

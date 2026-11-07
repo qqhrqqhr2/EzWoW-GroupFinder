@@ -33,6 +33,7 @@ Data\Dungeons.lua
 Modules\Collector.lua
 Modules\Channels.lua
 Modules\Composer.lua
+Modules\Greeter.lua
 UI\LanguageDropdown.lua
 UI\MainWindow.lua
 UI\Launcher.lua

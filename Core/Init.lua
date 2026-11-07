@@ -52,6 +52,8 @@ ns.DEFAULTS = {
     showLFG        = true,
     alertMyLevel   = false,
     alertSound     = true,
+    greetSelf      = true,
+    greetWelcome   = true,
     showIcon       = true,
     selected       = "all",
     tab            = "browse",
@@ -243,6 +245,11 @@ function ns:InitDB()
         if type(db[key]) ~= "table" then db[key] = {} end
     end
     fillDefaults(db.compose, self.COMPOSE_DEFAULTS)
+    -- greetings became on by default; saves from the first test build had them off
+    if not db.greetDefaultOn then
+        db.greetDefaultOn = true
+        db.greetSelf, db.greetWelcome = true, true
+    end
     if type(db.compose.roles) ~= "table" then db.compose.roles = {} end
     db.expireMinutes = math.max(3, math.min(30, tonumber(db.expireMinutes) or 10))
     db.compose.size = math.max(1, math.min(4, tonumber(db.compose.size) or 1))

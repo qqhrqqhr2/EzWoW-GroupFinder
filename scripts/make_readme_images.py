@@ -78,6 +78,7 @@ L = {
         "optMyLevel": "내 레벨에 맞는 던전 글만 보기", "optHideBoost": "버스(돈 받고 돌아 주는) 글 숨기기",
         "optIcon": "실행 아이콘 표시", "secAlert": "알림", "optAlertMyLevel": "내 레벨 던전에 새 구인 글이 오면 알림",
         "optSound": "알림 소리",
+        "secGreet": "인사", "optGreetSelf": "파티에 들어가면 자기소개 하기", "optGreetWelcome": "새 파티원에게 환영 인사 하기",
         "watchHint": "목록에서 던전을 오른쪽 클릭하면 그 던전의 새 글만 따로 알림을 받을 수 있습니다.",
         "language": "언어", "unblock": "숨긴 사람 되돌리기 (%d)", "resetPos": "창·아이콘 위치 초기화",
         "donate": "후원 · 링크 복사", "optAutoJoin": "서버 파티찾기 채널에 자동 참여",
@@ -99,6 +100,8 @@ L = {
         "optMyLevel": "Only show dungeons for my level", "optHideBoost": "Hide boost (paid run) posts",
         "optIcon": "Show launcher icon", "secAlert": "Alerts", "optAlertMyLevel": "Alert on new LFM posts for my level",
         "optSound": "Alert sound",
+        "secGreet": "Greetings", "optGreetSelf": "Introduce myself when I join a party",
+        "optGreetWelcome": "Welcome new party members",
         "watchHint": "Right-click a dungeon in the list to get alerts for that dungeon only.",
         "language": "Language", "unblock": "Unhide players (%d)", "resetPos": "Reset window & icon",
         "donate": "Donate · Copy link", "optAutoJoin": "Auto-join the server's LFG channel",
@@ -112,7 +115,7 @@ L = {
 T = {
     "ko": {
         "head": "채팅의 파티 모집 글을 던전별로 모아 보기 · 역할·레벨 필터 · 귓말·초대 · 새 글 알림",
-        "sBadge": "설정창", "sHead": "/ezgf 설정 · 글 모으기, 채널, 표시, 알림, 언어",
+        "sBadge": "설정창", "sHead": "/ezgf 설정 · 글 모으기, 채널, 표시, 알림, 파티 인사, 언어",
         "chLFG": "파티찾기", "chGeneral": "공개", "chTrade": "거래",
         "notes": [
             ("탭", "파티 찾기(모인 글 보기)와 모집 글 쓰기(방식·던전·역할·인원·메모로 글을 만들어 채팅에 보내기, 30초에 한 번)."),
@@ -131,6 +134,7 @@ T = {
             ("채널 이름 · 유지 시간", "적어 둔 채널에 보이지 않게 들어가 글을 모으고 모집 글의 기본 보낼 곳으로 씁니다(채팅창에는 안 보임). 글 유지 3~30분."),
             ("표시", "내 레벨 던전 글만, 버스 글 숨기기, 실행 아이콘 표시."),
             ("알림", "내 레벨 던전의 새 구인 글 알림과 알림 소리. 던전별 알림은 목록에서 오른쪽 클릭."),
+            ("인사", "파티에 들어가면 자기소개(예: \"안녕하세요! 16렙 야성 드루이드입니다.\"), 내 파티에 새 사람이 오면 \"바람결님 어서 오세요, 반갑습니다!\"(여러 명이면 \"바람결님, 별빛노래님 ...\"). 특성 이름은 EzWoW - Tooltip이 있을 때만 붙습니다. 공격대에서는 보내지 않습니다."),
             ("언어 · 숨긴 사람", "언어(자동 + 8개 언어). Alt+클릭으로 숨긴 사람을 모두 되돌립니다."),
             ("위치 · 후원", "창과 실행 아이콘 위치 초기화, 후원 링크 복사."),
         ],
@@ -138,7 +142,7 @@ T = {
     },
     "en": {
         "head": "Group posts from chat sorted by dungeon · role and level filters · whisper and invite · new-post alerts",
-        "sBadge": "Settings", "sHead": "/ezgf config · collecting, channels, display, alerts, language",
+        "sBadge": "Settings", "sHead": "/ezgf config · collecting, channels, display, alerts, party greetings, language",
         "chLFG": "LookingForGroup", "chGeneral": "General", "chTrade": "Trade",
         "notes": [
             ("Tabs", "Find Group (browse the posts) and Write Post (build a message from type, dungeon, roles, size and a note; send once every 30 s)."),
@@ -157,6 +161,7 @@ T = {
             ("Channels · keep time", "Joins the channels you list in the background to collect posts and uses them as the default send target (hidden from your chat). Keep posts 3–30 min."),
             ("Display", "Only my level, hide boost posts, launcher icon."),
             ("Alerts", "New LFM posts for your level, with sound. Per-dungeon alerts: right-click a dungeon in the list."),
+            ("Greetings", "Introduce yourself when you join a party (e.g. \"Hello! Level 16 Feral Combat Druid here.\") and greet newcomers by name: \"Welcome, Windrift! Nice to meet you!\". The talent tree is added when EzWoW - Tooltip is installed. Never in a raid."),
             ("Language · hidden players", "Language (auto + 8 languages). Unhide everyone you hid with Alt+Click."),
             ("Position · donate", "Reset the window and launcher icon positions, copy the donate link."),
         ],
@@ -520,11 +525,11 @@ def ui_page(lang, icon_uri):
 
 
 # ---------------------------------------------------------------------------
-# Settings window (UI/OptionsWindow.lua): 420 x 692
+# Settings window (UI/OptionsWindow.lua): 420 x 780
 # ---------------------------------------------------------------------------
 def settings_page(lang, icon_uri):
     s, t = L[lang], T[lang]
-    W, H = 420, 692
+    W, H = 420, 780
     ox, oy = 72, 160
     p = header(W, s["settingsSub"], 320, icon_uri)
 
@@ -565,8 +570,12 @@ def settings_page(lang, icon_uri):
     option("optSound", 496, True)
     small_text("watchHint", 526)
 
-    p.append(button(20, 562, 187, 28, f'{s["language"]}: Auto ▼'))
-    p.append(button(213, 562, 187, 28, s["unblock"] % 1))
+    section("secGreet", 566)
+    option("optGreetSelf", 590, True)
+    option("optGreetWelcome", 616, True)
+
+    p.append(button(20, 652, 187, 28, f'{s["language"]}: Auto ▼'))
+    p.append(button(213, 652, 187, 28, s["unblock"] % 1))
     p.append(button(20, H - 36 - 33, 185, 33, s["resetPos"]))
     p.append(button(W - 20 - 185, H - 36 - 33, 185, 33, s["donate"], accent=True))
     p.append(f'<div class="lbl" style="left:0;right:0;bottom:{px(10)};text-align:center;font-size:{px(10)};color:{C["fontDisable"]}">'
@@ -574,7 +583,7 @@ def settings_page(lang, icon_uri):
 
     win = f'<div class="win" style="left:{ox}px;top:{oy}px;width:{px(W)};height:{px(H)}">' + "".join(p) + '</div>'
     # callouts on the right edge, one per block
-    spans = [(70, 160), (160, 200), (200, 320), (330, 436), (446, 556), (562, 590), (H - 69, H - 36)]
+    spans = [(70, 160), (160, 200), (200, 320), (330, 436), (446, 556), (566, 642), (652, 680), (H - 69, H - 36)]
     calls = "".join(f'<div class="call" style="left:{ox + W * SCALE + 18:.0f}px;top:{oy + (a + b) / 2 * SCALE - 15:.0f}px">{i}</div>'
                     for i, (a, b) in enumerate(spans, 1))
     nx = ox + W * SCALE + 80
