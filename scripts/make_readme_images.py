@@ -23,7 +23,7 @@ from string import Template
 SCALE = 1.36
 PAGE_W = 1600
 PLAYER_LEVEL = 24
-VERSION = "1.0.0"
+VERSION = "1.0.2"
 
 # ns.Style (Core/Init.lua)
 C = {
@@ -133,8 +133,8 @@ T = {
             ("자동 참여", "서버 파티찾기 채널에 접속할 때마다 한 번 자동으로 들어갑니다. 직접 나가면 다음 접속까지 다시 들어가지 않습니다."),
             ("채널 이름 · 유지 시간", "적어 둔 채널에 보이지 않게 들어가 글을 모으고 모집 글의 기본 보낼 곳으로 씁니다(채팅창에는 안 보임). 글 유지 3~30분."),
             ("표시", "내 레벨 던전 글만, 버스 글 숨기기, 실행 아이콘 표시."),
-            ("알림", "내 레벨 던전의 새 구인 글 알림과 알림 소리. 던전별 알림은 목록에서 오른쪽 클릭."),
-            ("인사", "파티에 들어가면 자기소개(예: \"안녕하세요! 16렙 야성 드루이드입니다.\"), 내 파티에 새 사람이 오면 \"바람결님 어서 오세요, 반갑습니다!\"(여러 명이면 \"바람결님, 별빛노래님 ...\"). 특성 이름은 EzWoW - Tooltip이 있을 때만 붙습니다. 공격대에서는 보내지 않습니다."),
+            ("알림", "내 레벨 던전의 새 구인 글 알림과 알림 소리. 던전별 알림은 목록에서 오른쪽 클릭. 전투 중에 온 알림은 전투가 끝난 뒤 채팅에 표시됩니다."),
+            ("인사", "파티에 들어가면 자기소개(예: \"안녕하세요! 16렙 야성 드루이드입니다.\"), 내 파티에 새 사람이 오면 이름과 성을 불러 \"바람결 은빛숲님 어서 오세요, 반갑습니다!\"(여러 명이면 한 줄로). 특성 이름은 EzWoW - Tooltip이 있을 때만 붙습니다. 공격대에서는 보내지 않습니다."),
             ("언어 · 숨긴 사람", "언어(자동 + 8개 언어). Alt+클릭으로 숨긴 사람을 모두 되돌립니다."),
             ("위치 · 후원", "창과 실행 아이콘 위치 초기화, 후원 링크 복사."),
         ],
@@ -160,8 +160,8 @@ T = {
             ("Auto-join", "Joins the server's LFG channel once per login. If you leave it, it stays left until your next login."),
             ("Channels · keep time", "Joins the channels you list in the background to collect posts and uses them as the default send target (hidden from your chat). Keep posts 3–30 min."),
             ("Display", "Only my level, hide boost posts, launcher icon."),
-            ("Alerts", "New LFM posts for your level, with sound. Per-dungeon alerts: right-click a dungeon in the list."),
-            ("Greetings", "Introduce yourself when you join a party (e.g. \"Hello! Level 16 Feral Combat Druid here.\") and greet newcomers by name: \"Welcome, Windrift! Nice to meet you!\". The talent tree is added when EzWoW - Tooltip is installed. Never in a raid."),
+            ("Alerts", "New LFM posts for your level, with sound. Per-dungeon alerts: right-click a dungeon in the list. Alerts that arrive in combat are printed after the fight."),
+            ("Greetings", "Introduce yourself when you join a party (e.g. \"Hello! Level 16 Feral Combat Druid here.\") and greet newcomers by full name: \"Welcome, Windrift Ashvale! Nice to meet you!\" (one line when several join). The talent tree is added when EzWoW - Tooltip is installed. Never in a raid."),
             ("Language · hidden players", "Language (auto + 8 languages). Unhide everyone you hid with Alt+Click."),
             ("Position · donate", "Reset the window and launcher icon positions, copy the donate link."),
         ],
@@ -543,7 +543,7 @@ def settings_page(lang, icon_uri):
                  f'{fit(esc(s[key]), 12, 9, 345)}</div>')
 
     def small_text(key, y):
-        p.append(f'<div class="abs" style="{at(24, y, 372)}font-size:{px(10)};line-height:1.25;color:{C["textMuted"]}">{esc(s[key])}</div>')
+        p.append(f'<div class="abs" style="{at(24, y, 372)}font-size:{px(10)};line-height:1.12;color:{C["textMuted"]}">{esc(s[key])}</div>')
 
     section("secCollect", 70)
     option("optChannels", 94, True)

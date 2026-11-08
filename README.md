@@ -31,11 +31,13 @@ Collects group posts from chat by dungeon and helps you write and send your own.
 ### 알림
 - 목록에서 던전을 오른쪽 클릭하면(별 표시) 그 던전의 새 글이 올라올 때 알려 줍니다.
 - 설정에서 내 레벨 던전의 새 구인 글 알림과 알림 소리를 켤 수 있습니다.
+- 전투 중에 온 알림은 전투가 끝난 뒤 채팅에 표시합니다(아직 남아 있는 글만, 최근 3개까지).
 
 ### 인사
 - **파티에 들어가면 자기소개 하기**(기본 켬): 다른 사람의 파티에 들어가면 파티 채팅에 레벨·특성·직업을 소개합니다. 예: `안녕하세요! 16렙 야성 드루이드입니다.` (특성 이름은 EzWoW - Tooltip이 설치되어 있을 때 붙고, 없으면 직업만 소개합니다)
-- **새 파티원에게 환영 인사 하기**(기본 켬): 내 파티에 새 사람이 들어오면 이름을 불러 인사합니다. 예: `바람결님 어서 오세요, 반갑습니다!` 여러 명이 함께 들어오면 `바람결님, 별빛노래님 어서 오세요, 반갑습니다!`처럼 한 번에 보냅니다.
+- **새 파티원에게 환영 인사 하기**(기본 켬): 내 파티에 새 사람이 들어오면(내가 초대해 파티가 만들어질 때 포함) 이름과 성을 불러 인사합니다. 예: `바람결 은빛숲님 어서 오세요, 반갑습니다!` 여러 명이 함께 들어오면 `바람결 은빛숲님, 별빛노래 달무리님 어서 오세요, 반갑습니다!`처럼 한 번에 보냅니다.
 - 파티에서만 보내고 공격대에서는 보내지 않습니다. 전투 중이라 채팅을 보낼 수 없으면 잠시 기다렸다가 보냅니다.
+- 접속하거나 `/reload`한 뒤에는 이미 있던 파티원에게 다시 인사하지 않습니다.
 - 설정창의 **인사** 구역에서 각각 끌 수 있습니다.
 
 ## English
@@ -64,9 +66,11 @@ Collects group posts from chat by dungeon and helps you write and send your own.
 ### Alerts
 - Right-click a dungeon in the list (star) to be alerted about its new posts.
 - Optionally get alerts, with sound, for new LFM posts for your level.
+- Alerts that arrive in combat are printed after the fight (only posts that are still listed, the latest 3 at most).
 
 ### Greetings
 - **Introduce myself when I join a party** (on by default): when you join someone's party, your level, talent tree and class go to party chat, e.g. `Hello! Level 16 Feral Combat Druid here.` (the talent tree is added when EzWoW - Tooltip is installed; otherwise just the class).
-- **Welcome new party members** (on by default): when someone joins your party, greets them by name, e.g. `Welcome, Windrift! Nice to meet you!`. Several people joining together get one line: `Welcome, Windrift, Starsong! Nice to meet you!`.
+- **Welcome new party members** (on by default): when someone joins your party (including when your invite starts a new party), greets them by full name, e.g. `Welcome, Windrift Ashvale! Nice to meet you!`. Several people joining together get one line: `Welcome, Windrift Ashvale, Starsong Moonhollow! Nice to meet you!`.
 - Parties only, never in a raid. If chat is locked in combat, the line waits a little.
+- After logging in or `/reload`, members already in your party are not greeted again.
 - Each can be turned off in the **Greetings** section of the settings.

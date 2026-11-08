@@ -33,11 +33,12 @@ A group finder for WoW Forever. It collects the group posts people write in chat
 ### Alerts
 - Right-click a dungeon in the list (star) to be alerted about its new posts.
 - Optional alerts, with sound, for new LFM posts for your level.
+- Alerts that arrive in combat are printed in chat after the fight.
 
 ### Greetings (on by default)
 - **Introduce myself when I join a party**: says your level, talent tree and class in party chat, e.g. "Hello! Level 16 Feral Combat Druid here." (the talent tree is added when EzWoW - Tooltip is installed; otherwise just the class)
-- **Welcome new party members**: greets newcomers by name when they join your party, e.g. "Welcome, Windrift! Nice to meet you!" (one line when several join together).
-- Parties only, never in a raid. Each can be turned off in the settings.
+- **Welcome new party members**: greets newcomers by name and surname when they join your party, e.g. "Welcome, Windrift Ashvale! Nice to meet you!" (one line when several join together).
+- Parties only, never in a raid; members already in your party are not greeted again after a login or `/reload`. Each can be turned off in the settings.
 
 ## Settings (`/ezgf config`)
 - **Collect**: chat channels, Say & Yell, guild chat, auto-join the LFG channel, extra channel names, how long posts are kept.
@@ -85,11 +86,12 @@ WoW Forever용 파티 찾기 애드온입니다. 채팅에 올라온 파티 모�
 ### 알림
 - 목록에서 던전을 오른쪽 클릭하면(별 표시) 그 던전의 새 글이 올라올 때 알려 줍니다.
 - 내 레벨 던전의 새 구인 글 알림과 알림 소리(선택).
+- 전투 중에 온 알림은 전투가 끝난 뒤 채팅에 표시합니다.
 
 ### 인사 (기본 켬)
 - **파티에 들어가면 자기소개 하기**: 파티 채팅에 레벨·특성·직업을 소개합니다. 예: "안녕하세요! 16렙 야성 드루이드입니다." (특성 이름은 EzWoW - Tooltip이 있을 때 붙고, 없으면 직업만)
-- **새 파티원에게 환영 인사 하기**: 내 파티에 새 사람이 들어오면 이름을 불러 인사합니다. 예: "바람결님 어서 오세요, 반갑습니다!" (여러 명이 함께 들어오면 "바람결님, 별빛노래님 어서 오세요, 반갑습니다!"처럼 한 번에).
-- 파티에서만 보내고 공격대에서는 보내지 않습니다. 설정에서 각각 끌 수 있습니다.
+- **새 파티원에게 환영 인사 하기**: 내 파티에 새 사람이 들어오면 이름과 성을 불러 인사합니다. 예: "바람결 은빛숲님 어서 오세요, 반갑습니다!" (여러 명이 함께 들어오면 "바람결 은빛숲님, 별빛노래 달무리님 어서 오세요, 반갑습니다!"처럼 한 번에).
+- 파티에서만 보내고 공격대에서는 보내지 않습니다. 접속하거나 `/reload`한 뒤에는 이미 있던 파티원에게 다시 인사하지 않습니다. 설정에서 각각 끌 수 있습니다.
 
 ## 설정 (`/ezgf 설정`)
 - **글 모으기**: 채팅 채널, 일반 대화·외치기, 길드 대화, 파티찾기 채널 자동 참여, 추가 채널 이름, 글 유지 시간.
