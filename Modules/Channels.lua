@@ -96,6 +96,61 @@ local lfgJoinedOnce = false
 local lfgLeftByPlayer = false
 local lastLoadingTime = 0
 
+-----------------------------------------------------------------------------
+-- Channel numbers: a new channel gets the lowest free number, and the client
+-- keeps the numbers for the next login. Joined before the game's own channels
+-- (General, Trade, ...), the group-finding channel would take number 1 and
+-- push General down for good. So it is joined only once one of the game's
+-- channels is there, and a group-finding channel that already sits in front
+-- of them is swapped behind the first one (once per character).
+-----------------------------------------------------------------------------
+-- the game's own channel (not group finding) the player is in with the lowest number
+local function firstGameChannel()
+    local bases = {}
+    for _, name in ipairs(ns.GetServerChannels()) do
+        if not ns.IsLFGChannelName(name) then bases[#bases + 1] = name end
+    end
+    local best
+    for _, channel in ipairs(ns.GetJoinedChannels()) do
+        local name = channel.name
+        if not ns.IsLFGChannelName(name) then
+            -- "General - Elwynn Forest": zone channels carry the zone after " - "
+            local isGame = name:find(" - ", 1, true) ~= nil
+            for _, base in ipairs(bases) do
+                if name == base or name:sub(1, #base + 3) == base .. " - " then isGame = true break end
+            end
+            if isGame and (not best or channel.id < best.id) then best = channel end
+        end
+    end
+    return best
+end
+
+local function characterKey()
+    local guid = UnitGUID and UnitGUID("player")
+    if type(guid) ~= "string" or ns.IsSecret(guid) then return nil end
+    return guid
+end
+
+-- true when nothing is left to do (done now, done before, or not needed)
+local function fixLFGOrder()
+    local key = characterKey()
+    if not (key and ns.db) then return false end
+    if type(ns.db.lfgOrderFixed) ~= "table" then ns.db.lfgOrderFixed = {} end
+    if ns.db.lfgOrderFixed[key] then return true end
+    local lfg, first = ns.GetJoinedLFGChannel(), firstGameChannel()
+    if not (lfg and first) then return false end
+    ns.db.lfgOrderFixed[key] = true
+    local swap = C_ChatInfo and type(C_ChatInfo.SwapChatChannelsByChannelIndex) == "function"
+        and C_ChatInfo.SwapChatChannelsByChannelIndex
+    if swap and lfg.id < first.id and not (InCombatLockdown and InCombatLockdown()) then
+        pcall(swap, lfg.id, first.id)
+    end
+    return true
+end
+
+local GAME_CHANNEL_WAIT = 30   -- seconds to wait for the game's channels after login
+local waitedFor = 0
+
 -- Joins the group-finding channel and the player's own channels in the background
 -- (they are not added to any chat window; the addon still reads them).
 -- fromOption: the auto-join option was just switched (clears a remembered leave).
@@ -108,6 +163,16 @@ function ns.EnsureLFGChannel(fromOption)
     for _, name in ipairs(ns.GetCustomChannelNames()) do joinChannel(name) end
     if ns.GetJoinedLFGChannel() then
         lfgJoinedOnce = true
+        if not fixLFGOrder() and waitedFor < GAME_CHANNEL_WAIT then
+            waitedFor = waitedFor + 3
+            C_Timer.After(3, function() ns.EnsureLFGChannel() end)
+        end
+    elseif ns.db.autoJoinLFG and not lfgJoinedOnce and not lfgLeftByPlayer
+        and not firstGameChannel() and waitedFor < GAME_CHANNEL_WAIT then
+        -- the game's own channels are not there yet: wait so they keep their numbers
+        waitedFor = waitedFor + 3
+        C_Timer.After(3, function() ns.EnsureLFGChannel() end)
+        return
     elseif ns.db.autoJoinLFG and not lfgJoinedOnce and not lfgLeftByPlayer then
         -- the same as typing /join 파티찾기 (or /join LookingForGroup)
         local locale = type(GetLocale) == "function" and GetLocale() or ""
