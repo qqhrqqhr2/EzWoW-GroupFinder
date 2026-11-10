@@ -47,6 +47,15 @@ A group finder for WoW Forever. It collects the group posts people write in chat
 - **Greetings**: introduce myself, welcome new members.
 - Language (auto + 8 languages), unhide players, reset the window and icon positions.
 
+## Gamepad
+- With the gamepad UI on, EzWoW windows work with a gamepad: D-pad to move, A (✕) to press, X (□) for right-click, LB/RB to scroll, B (○) to close. A key guide in your pad's button style shows under the window.
+- With no game window open, press **View (Back) / Create** to move to the EzWoW frames on screen. Press it again or B to go back.
+- To use another button: Key Bindings > AddOns > EzWoW > "Gamepad: move to / leave the EzWoW frames" (with EzWoW-MapFinder installed).
+
+## Record sharing
+- Shared by all EzWoW addons and **on by default**: quest NPCs, rare monster sightings, item drops and gathering spots you have seen yourself are shared with other EzWoW users.
+- `/ezshare on` / `off`, `/ezshare channel on` / `off`, `/ezshare status`
+
 ## Commands
 - `/ezgf` or `/파티찾기` — open the finder
 - `/ezgf config` — settings
@@ -99,6 +108,15 @@ WoW Forever용 파티 찾기 애드온입니다. 채팅에 올라온 파티 모�
 - **알림**: 내 레벨 던전의 새 구인 글 알림, 알림 소리.
 - **인사**: 자기소개, 새 파티원 환영 인사.
 - 언어(자동 + 8개 언어), 숨긴 사람 되돌리기, 창·아이콘 위치 초기화.
+
+## 게임패드
+- 게임패드 UI를 켜면 EzWoW 창을 패드로 다룰 수 있습니다. 방향키로 이동, A(✕)로 누르기, X(□)로 오른쪽 클릭, LB/RB로 스크롤, B(○)로 닫기입니다. 창 아래에 연결된 패드 모양으로 키 안내가 나옵니다.
+- 블리자드 창이 열려 있지 않을 때 **보기(Back) / Create 버튼**을 누르면 화면의 EzWoW 프레임으로 이동합니다. 다시 누르거나 B를 누르면 돌아갑니다.
+- 다른 버튼을 쓰려면: 설정 > 단축키 > 애드온 > EzWoW > "게임패드: EzWoW 창으로 이동/돌아가기" (EzWoW-MapFinder 설치 시)
+
+## 기록 공유
+- 모든 EzWoW 애드온이 함께 쓰며 **기본으로 켜져 있습니다**. 직접 확인한 퀘스트 NPC, 희귀 몬스터 목격, 아이템 드롭, 채집 위치를 다른 EzWoW 사용자와 나눕니다.
+- `/ezshare on` / `off` (또는 `/공유`), `/ezshare channel on` / `off`, `/ezshare status`
 
 ## 명령어
 - `/ezgf` 또는 `/파티찾기` — 파티 찾기 창 열기
