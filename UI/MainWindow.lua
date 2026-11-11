@@ -14,6 +14,9 @@ local FOOTER_HEIGHT = 34
 local window
 local browse, compose = {}, {}
 
+-- column starts in a post row (and its header)
+local COL = { kind = 12, dungeon = 62, roles = 300, members = 392, level = 446 }
+
 local function rgba(c) return c[1], c[2], c[3], c[4] or 1 end
 local function S() return ns.Style end
 
@@ -194,7 +197,7 @@ local function showPostTooltip(row)
     local r, g, b = ns.ClassColor(post.class)
     local kc, muted = kindColor(post), S().textMuted
     GameTooltip:AddDoubleLine(post.sender, kindLabel(post), r or 1, g or 1, b or 1, kc[1], kc[2], kc[3])
-    GameTooltip:AddLine(post.text, 0.929, 0.957, 0.969, true)
+    GameTooltip:AddLine(post.display or post.text, 0.929, 0.957, 0.969, true)
     GameTooltip:AddLine(" ")
     GameTooltip:AddDoubleLine(post.channel or "", ageText(GetTime() - post.time), muted[1], muted[2], muted[3], muted[1], muted[2], muted[3])
     if not post.mine then
@@ -214,13 +217,25 @@ local function createPostRow(list)
     row.bar:SetPoint("BOTTOMLEFT", 1, 1)
     row.bar:SetWidth(3)
 
+    -- top line: fixed columns (kind | dungeon | roles | members | level | age)
     row.kind = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.kind:SetPoint("TOPLEFT", 12, -7)
+    row.kind:SetPoint("TOPLEFT", COL.kind, -7)
+    row.kind:SetWidth(COL.dungeon - COL.kind - 4)
+    row.kind:SetJustifyH("LEFT")
+    row.kind:SetWordWrap(false)
     row.title = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    row.title:SetPoint("LEFT", row.kind, "RIGHT", 8, 0)
+    row.title:SetPoint("LEFT", row, "TOPLEFT", COL.dungeon, -13)
     row.title:SetJustifyH("LEFT")
     row.roles = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.roles:SetPoint("LEFT", row.title, "RIGHT", 8, 0)
+    row.roles:SetPoint("LEFT", row, "TOPLEFT", COL.roles, -13)
+    row.roles:SetJustifyH("LEFT")
+    row.members = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.members:SetPoint("LEFT", row, "TOPLEFT", COL.members, -13)
+    row.members:SetJustifyH("LEFT")
+    row.level = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.level:SetPoint("LEFT", row, "TOPLEFT", COL.level, -13)
+    row.level:SetJustifyH("LEFT")
+    row.level:SetTextColor(rgba(S().textMuted))
     row.age = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.age:SetPoint("TOPRIGHT", -10, -7)
     row.age:SetTextColor(rgba(S().textMuted))
@@ -235,6 +250,29 @@ local function createPostRow(list)
     row.whisper:SetPoint("RIGHT", row.invite, "LEFT", -4, 0)
     row.whisper:SetScript("OnClick", function() if row.post then ns.WhisperPlayer(row.post.sender) end end)
     row.invite:SetScript("OnClick", function() if row.post then ns.InvitePlayer(row.post.sender) end end)
+
+    -- one-click join whispers (tank / healer / dps) on recruiting posts
+    row.joinBtns = {}
+    for _, role in ipairs({ "tank", "healer", "dps" }) do
+        local b = UIKit:CreateButton(row, 34, 20, "", false, "GameFontHighlightSmall")
+        b.role = role
+        b:SetScript("OnClick", function(self)
+            if not row.post then return end
+            if ns.SendJoinWhisper(row.post, self.role) then
+                ns.Print(string.format(ns:L("joinSent"), row.post.shortName or row.post.sender))
+            end
+        end)
+        b:HookScript("OnEnter", function(self)
+            if not row.post then return end
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:AddLine(ns:L("joinTip"), 1, 1, 1)
+            GameTooltip:AddLine(ns.BuildJoinWhisper(row.post, self.role), rgba(S().textMuted))
+            GameTooltip:Show()
+        end)
+        b:HookScript("OnLeave", function() GameTooltip:Hide() end)
+        b:Hide()
+        row.joinBtns[role] = b
+    end
 
     row:SetScript("OnClick", function(self)
         local post = self.post
@@ -282,18 +320,20 @@ local function updatePostRow(row, post)
     if width < 100 then width = WIDTH - SIDEBAR_WIDTH - 52 end
     row.age:SetText(ageText(GetTime() - post.time))
 
-    local extra = rolesMarkup(post.roles)
+    -- roles: needed (recruiting) or offered (looking for a group); "-" when not written
+    local roles = rolesMarkup(post.roles or {})
+    row.roles:SetText(roles ~= "" and roles or colorize("-", S().disabled))
+    -- members: "3/5" when the post says how many it has, "+2" when it says how many it needs
     if post.have then
-        extra = extra .. (extra ~= "" and "  " or "") .. colorize(post.have .. "/5", S().textMuted)
+        row.members:SetText(colorize(post.have .. "/5", S().textBody))
     elseif post.need then
-        extra = extra .. (extra ~= "" and "  " or "") .. colorize("+" .. post.need, S().textMuted)
+        row.members:SetText(colorize("+" .. post.need, S().textBody))
+    else
+        row.members:SetText(colorize("-", S().disabled))
     end
-    if post.level then
-        extra = extra .. (extra ~= "" and "  " or "") .. colorize("Lv" .. post.level, S().textMuted)
-    end
-    row.roles:SetText(extra)
+    row.level:SetText(post.level and ("Lv" .. post.level) or "")
 
-    local titleMax = width - 12 - (row.kind:GetStringWidth() or 30) - 8 - (row.roles:GetStringWidth() or 0) - 16 - (row.age:GetStringWidth() or 40) - 14
+    local titleMax = COL.roles - COL.dungeon - 8
     local title = postTitle(post)
     local dungeon = ns.DungeonByKey[post.key]
     if dungeon and #post.keys == 1 then
@@ -311,7 +351,28 @@ local function updatePostRow(row, post)
     row.whisper:SetLabel(ns:L("whisper"))
     row.invite:SetLabel(ns:L("invite"))
     local buttonsWidth = showButtons and (post.kind == "lfg" and 124 or 66) or 0
-    ns.FitText(row.body, name .. colorize(": " .. post.text, S().textMuted), width - 24 - buttonsWidth, 11, 11)
+
+    -- join buttons: recruiting posts, the roles this class can play that the post asks for
+    local myRoles = ns.MyClassRoles()
+    local asks = type(post.roles) == "table" and (post.roles.tank or post.roles.healer or post.roles.dps)
+    local anchor = row.whisper
+    local roleLabel = { tank = "roleTank", healer = "roleHeal", dps = "roleDps" }
+    for _, role in ipairs({ "dps", "healer", "tank" }) do
+        local b = row.joinBtns[role]
+        local show = showButtons and post.kind == "lfm" and not post.boost and myRoles[role]
+            and (not asks or post.roles[role]) and true or false
+        b:SetShown(show)
+        if show then
+            b:SetLabel(ns:L(roleLabel[role]))
+            local w = math.max(34, math.floor((b.label:GetStringWidth() or 20) + 14))
+            b:SetWidth(w)
+            b:ClearAllPoints()
+            b:SetPoint("RIGHT", anchor, "LEFT", -4, 0)
+            anchor = b
+            buttonsWidth = buttonsWidth + w + 4
+        end
+    end
+    ns.FitText(row.body, name .. colorize(": " .. (post.display or post.text), S().textMuted), width - 24 - buttonsWidth, 11, 11)
     browse.paintPost(row)
 end
 
@@ -379,8 +440,26 @@ local function buildBrowse(parent)
     end)
     browse.roleChip.tooltip = function() return ns:L("myRoleTip") end
 
+    -- column titles above the list
+    local header = CreateFrame("Frame", nil, panel)
+    header:SetPoint("TOPLEFT", left, -32)
+    header:SetPoint("RIGHT", panel, "RIGHT", -12, 0)
+    header:SetHeight(18)
+    browse.header = {}
+    for _, col in ipairs({ { "kind", "colKind" }, { "dungeon", "colDungeon" }, { "roles", "colRoles" },
+        { "members", "colMembers" }, { "level", "colLevel" } }) do
+        local fs = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fs:SetPoint("LEFT", header, "LEFT", COL[col[1]], 0)
+        fs:SetTextColor(rgba(S().textMuted))
+        browse.header[col[2]] = fs
+    end
+    local ageHead = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    ageHead:SetPoint("RIGHT", header, "RIGHT", -10, 0)
+    ageHead:SetTextColor(rgba(S().textMuted))
+    browse.header.colAge = ageHead
+
     browse.list = UIKit:CreateScrollList(panel, 50, 4, 1, createPostRow, updatePostRow)
-    browse.list:SetPoint("TOPLEFT", left, -34)
+    browse.list:SetPoint("TOPLEFT", left, -52)
     browse.list:SetPoint("BOTTOMRIGHT", -12, 0)
 
     browse.empty = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
@@ -394,6 +473,7 @@ function browse.Refresh()
     local db = ns.db
     browse.counts = ns.CountByCategory()
     browse.categories:SetData(categoryItems(), true)
+    for key, fs in pairs(browse.header) do fs:SetText(ns:L(key)) end
 
     browse.lfmChip:SetLabel(ns:L("kindLFM"))
     browse.lfmChip:SetActive(db.showLFM)
@@ -568,14 +648,32 @@ local function buildCompose(parent)
     compose.tip:SetJustifyH("LEFT")
     compose.tip:SetTextColor(rgba(S().textMuted))
 
+    -- repeat reminder interval (click: next choice)
+    compose.repeatBtn = UIKit:CreateButton(panel, 366, 24, "", false, "GameFontHighlightSmall")
+    compose.repeatBtn:SetPoint("TOPLEFT", x2, -270)
+    compose.repeatBtn:SetScript("OnClick", function()
+        local c = composeState()
+        local list, cur = ns.REPEAT_CHOICES, tonumber(c.repeatEvery) or 0
+        local nextValue = list[1]
+        for i, v in ipairs(list) do
+            if v == cur then nextValue = list[i % #list + 1] break end
+        end
+        c.repeatEvery = nextValue
+        if nextValue == 0 then ns.StopRepeat(true) end
+        compose.Refresh()
+    end)
+    compose.repeatBtn.tooltip = function() return ns:L("repeatTip") end
+
     -- send
     compose.sendBtn = UIKit:CreateButton(panel, 366, 36, "", true, "GameFontNormal")
     compose.sendBtn:SetPoint("TOPLEFT", x2, -312 + 8)
     compose.sendBtn:SetScript("OnClick", function()
         local c = composeState()
         c.channel = c.channel or ns.DefaultSendTarget()
-        if ns.SendPost(compose.messageEdit:GetText(), c.channel) then
+        local text = compose.messageEdit:GetText()
+        if ns.SendPost(text, c.channel) then
             compose.status = ns:L("sentMsg")
+            ns.StartRepeat(text, c.channel, c.mode)
         end
         compose.Refresh()
     end)
@@ -647,8 +745,75 @@ function compose.Refresh()
     compose.messageLabel:SetText(ns:L("message"))
     compose.rebuildBtn:SetLabel(ns:L("rebuild"))
     compose.tip:SetText(ns:L("spamTip"))
+    local every = tonumber(c.repeatEvery) or 0
+    local everyText = every > 0 and string.format(ns:L("repeatEvery"), every % 60 == 0 and string.format(ns:L("repeatMin"), every / 60)
+        or string.format(ns:L("repeatMinSec"), math.floor(every / 60), every % 60)) or ns:L("repeatOff")
+    compose.repeatBtn:SetLabel(string.format(ns:L("repeatLabel"), everyText))
+    compose.repeatBtn:SetActive(every > 0)
     compose.UpdateByteCount()
     compose.UpdateSendButton()
+end
+
+-----------------------------------------------------------------------------
+-- Repeat reminder (shows even with the window closed)
+-----------------------------------------------------------------------------
+local reminder
+
+local function buildReminder()
+    local f = CreateFrame("Frame", "EzWoWGroupFinderRepost", UIParent, "BackdropTemplate")
+    f:SetSize(300, 64)
+    f:SetFrameStrata("DIALOG")
+    UIKit:ApplyBackdrop(f)
+    f:SetBackdropColor(rgba(S().bgSecondary))
+    f:SetBackdropBorderColor(rgba(S().accent))
+    f:SetMovable(true)
+    f:EnableMouse(true)
+    f:RegisterForDrag("LeftButton")
+    f:SetScript("OnDragStart", f.StartMoving)
+    f:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local point, _, relPoint, x, y = self:GetPoint(1)
+        ns.db.frames.repost = { point, relPoint, math.floor((x or 0) + 0.5), math.floor((y or 0) + 0.5) }
+    end)
+    local pos = ns.db.frames and ns.db.frames.repost
+    if type(pos) == "table" and pos[1] then
+        f:SetPoint(pos[1], UIParent, pos[2], pos[3], pos[4])
+    else
+        f:SetPoint("TOP", UIParent, "TOP", 0, -160)
+    end
+    f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    f.title:SetPoint("TOPLEFT", 10, -8)
+    f.title:SetPoint("TOPRIGHT", -10, -8)
+    f.title:SetJustifyH("LEFT")
+    f.post = UIKit:CreateButton(f, 186, 26, "", true, "GameFontHighlightSmall")
+    f.post:SetPoint("BOTTOMLEFT", 10, 8)
+    f.post:SetScript("OnClick", function() ns.RepostNow() end)
+    f.stop = UIKit:CreateButton(f, 88, 26, "", false, "GameFontHighlightSmall")
+    f.stop:SetPoint("BOTTOMRIGHT", -10, 8)
+    f.stop:SetScript("OnClick", function() ns.StopRepeat() end)
+    f:SetScript("OnUpdate", function(self, elapsed)
+        self.tick = (self.tick or 0) + elapsed
+        if self.tick < 0.5 then return end
+        self.tick = 0
+        local left = ns.SendCooldownLeft()
+        self.post:SetLabel(left > 0 and string.format(ns:L("sendWait"), left) or ns:L("repostBtn"))
+        self.post:SetEnabledState(left <= 0)
+    end)
+    f:Hide()
+    return f
+end
+
+function ns.ShowRepostReminder(state)
+    if not ns.db then return end
+    reminder = reminder or buildReminder()
+    reminder.title:SetText(string.format(ns:L("repostTitle"), state.count, ns.REPEAT_MAX))
+    reminder.stop:SetLabel(ns:L("repostStop"))
+    reminder.post:SetLabel(ns:L("repostBtn"))
+    reminder:Show()
+end
+
+function ns.HideRepostReminder()
+    if reminder then reminder:Hide() end
 end
 
 -----------------------------------------------------------------------------

@@ -1,0 +1,5 @@
+<Bindings>
+	<Binding name="EZWOW_GF_REPOST" header="EZWOWGF" category="ADDONS">
+		if EzWoW_GroupFinderRepost then EzWoW_GroupFinderRepost() end
+	</Binding>
+</Bindings>

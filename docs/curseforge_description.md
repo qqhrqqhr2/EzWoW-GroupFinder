@@ -126,3 +126,9 @@ WoW Forever용 파티 찾기 애드온입니다. 채팅에 올라온 파티 모�
 - `/ezgf 아이콘` — 실행 아이콘 다시 표시
 
 지원 언어: English, 한국어, Deutsch, Français, Español, Русский, 简体中文, 繁體中文.
+
+---
+
+**Support:** If you find this addon useful, you can support its development. [Buy Me a Coffee ☕](https://buymeacoffee.com/qqhrqqhr2)
+
+**후원:** 애드온이 도움이 되셨다면 개발 후원으로 응원해 주세요. [Buy Me a Coffee ☕](https://buymeacoffee.com/qqhrqqhr2)

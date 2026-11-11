@@ -107,6 +107,27 @@ function ns.StripCodes(text)
     return text
 end
 
+-- Text for showing a post: colours and links go, icons stay. Raid target tags
+-- ({skull}, {rt8}, {해골} ...) become their icons, as the chat window shows them.
+function ns.DisplayText(text)
+    if type(text) ~= "string" then return "" end
+    text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    text = text:gsub("|H.-|h(.-)|h", "%1")
+    local tags, icons = rawget(_G, "ICON_TAG_LIST"), rawget(_G, "ICON_LIST")
+    text = text:gsub("{([^}]*)}", function(tag)
+        local lower = ns.LowerText(tag)
+        local index = tonumber(lower:match("^rt(%d)$")) or (type(tags) == "table" and tags[lower])
+        if index and type(icons) == "table" and type(icons[index]) == "string" then
+            return icons[index] .. "0|t"
+        end
+        return "{" .. tag .. "}"
+    end)
+    -- a broken texture code would swallow the rest of the line
+    text = text:gsub("|([^TtAa|])", "||%1")
+    text = text:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+    return text
+end
+
 function ns.GetVersion()
     local getter = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
     if type(getter) == "function" then
@@ -220,6 +241,8 @@ function ns.FitText(fs, text, maxWidth, baseSize, minSize)
                 cut = cut - 1
             end
             text = text:sub(1, cut - 1)
+            -- never end inside an icon or colour code
+            text = text:gsub("|T[^|]*$", ""):gsub("|A[^|]*$", ""):gsub("|c%x*$", ""):gsub("|$", "")
             fs:SetText(text .. "...")
             if text == original then break end
         end

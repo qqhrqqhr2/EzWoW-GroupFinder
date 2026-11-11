@@ -181,6 +181,86 @@ function ns.SendPost(text, targetValue)
 end
 
 -----------------------------------------------------------------------------
+-- Repeat reminder: chat posts can't be sent by a timer (the game wants a
+-- click or a key press), so when the time comes a reminder with a "post
+-- again" button shows up; one click (or the key binding) posts it again.
+-----------------------------------------------------------------------------
+ns.REPEAT_CHOICES = { 0, 60, 90, 120, 180 }
+ns.REPEAT_MAX = 10
+
+local repeatState   -- { text, target, mode, count, nextAt, due }
+
+function ns.RepeatInterval()
+    local every = ns.db and ns.db.compose and tonumber(ns.db.compose.repeatEvery) or 0
+    return every or 0
+end
+
+function ns.RepeatInfo() return repeatState end
+
+function ns.StopRepeat(silent)
+    if repeatState and not silent then ns.Print(ns:L("repeatStopped")) end
+    repeatState = nil
+    if ns.HideRepostReminder then ns.HideRepostReminder() end
+end
+
+-- called after a post went out from the post tab
+function ns.StartRepeat(text, target, mode)
+    local every = ns.RepeatInterval()
+    if every <= 0 then repeatState = nil return end
+    repeatState = { text = text, target = target, mode = mode, count = 1, nextAt = GetTime() + every }
+end
+
+local function groupDone(state)
+    if type(IsInGroup) ~= "function" or not IsInGroup() then return false end
+    -- looking for a group: being in one is enough
+    if state.mode == "lfg" then return true end
+    local n = type(GetNumGroupMembers) == "function" and GetNumGroupMembers() or 0
+    return n >= 5
+end
+
+-- Must run from a click or a key binding.
+function ns.RepostNow()
+    local state = repeatState
+    if not state then return false end
+    if ns.SendCooldownLeft() > 0 then return false end
+    if not ns.SendPost(state.text, state.target) then return false end
+    state.count = state.count + 1
+    state.due = false
+    if ns.HideRepostReminder then ns.HideRepostReminder() end
+    if state.count >= ns.REPEAT_MAX then
+        repeatState = nil
+        ns.Print(ns:L("repeatDone"))
+    else
+        state.nextAt = GetTime() + math.max(ns.RepeatInterval(), ns.SEND_COOLDOWN)
+    end
+    return true
+end
+
+local function repeatTick()
+    local state = repeatState
+    if not state then return end
+    if groupDone(state) then
+        ns.StopRepeat(true)
+        ns.Print(ns:L("repeatGroupFull"))
+        return
+    end
+    if state.due or GetTime() < state.nextAt then return end
+    state.due = true
+    if ns.ShowRepostReminder then ns.ShowRepostReminder(state) end
+    if PlaySound and SOUNDKIT and SOUNDKIT.READY_CHECK then pcall(PlaySound, SOUNDKIT.READY_CHECK, "Master") end
+end
+
+if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(1, function() pcall(repeatTick) end) end
+
+-- key binding (Key Bindings > AddOns): a key press can post to chat
+_G.EzWoW_GroupFinderRepost = function() ns.RepostNow() end
+do
+    local ko = GetLocale and GetLocale() == "koKR"
+    _G.BINDING_HEADER_EZWOWGF = "EzWoW - Group Finder"
+    _G.BINDING_NAME_EZWOW_GF_REPOST = ko and "모집글 다시 올리기" or "Post the group message again"
+end
+
+-----------------------------------------------------------------------------
 -- Whisper / invite
 -----------------------------------------------------------------------------
 function ns.WhisperPlayer(name)
@@ -196,6 +276,58 @@ function ns.WhisperPlayer(name)
     elseif type(ChatFrame_OpenChat) == "function" then
         pcall(ChatFrame_OpenChat, line)
     end
+end
+
+-----------------------------------------------------------------------------
+-- One-click join whisper: "Healer for <dungeon>? Level 28 Druid."
+-----------------------------------------------------------------------------
+local CLASS_ROLES = {
+    WARRIOR = { tank = true, dps = true },
+    PALADIN = { tank = true, healer = true, dps = true },
+    DRUID   = { tank = true, healer = true, dps = true },
+    PRIEST  = { healer = true, dps = true },
+    SHAMAN  = { healer = true, dps = true },
+}
+
+-- the roles this character's class can play
+function ns.MyClassRoles()
+    local _, class = UnitClass("player")
+    return CLASS_ROLES[class] or { dps = true }
+end
+
+local JOIN_ROLE = {
+    ko = { tank = "탱으로", healer = "힐로", dps = "딜로" },
+    en = { tank = "tank", healer = "healer", dps = "DPS" },
+}
+
+function ns.BuildJoinWhisper(post, role)
+    local lang = chatLang()
+    local className = UnitClass("player") or ""
+    local level = ns.PlayerLevel()
+    local dungeon = ""
+    if type(post) == "table" and type(post.keys) == "table" and #post.keys == 1 then
+        dungeon = chatDungeonName(post.keys[1], lang)
+    end
+    if lang == "ko" then
+        return clampChat((dungeon ~= "" and (dungeon .. " ") or "") .. JOIN_ROLE.ko[role]
+            .. " 같이 가도 될까요? " .. level .. "레벨 " .. className .. "입니다.")
+    end
+    return clampChat("Hi! Can I join" .. (dungeon ~= "" and (" " .. dungeon) or "") .. " as "
+        .. JOIN_ROLE.en[role] .. "? Level " .. level .. " " .. className .. ".")
+end
+
+local joinSentAt = {}
+
+-- Sends the whisper at once; the same player is not whispered again for a few seconds
+function ns.SendJoinWhisper(post, role)
+    if type(post) ~= "table" or type(post.sender) ~= "string" or post.sender == "" then return false end
+    if not JOIN_ROLE.en[role] then return false end
+    local last = joinSentAt[post.sender]
+    if last and GetTime() - last < 5 then return false end
+    -- the sender exactly as the game gave it (a realm name added would fail)
+    local ok = sendChat(ns.BuildJoinWhisper(post, role), "WHISPER", post.sender)
+    if ok then joinSentAt[post.sender] = GetTime() end
+    return ok and true or false
 end
 
 function ns.InvitePlayer(name)

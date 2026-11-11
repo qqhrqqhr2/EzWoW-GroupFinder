@@ -58,10 +58,11 @@ local function compile(words)
     local out = {}
     for _, word in ipairs(words) do
         word = ns.LowerText(word)
+        local plain = (word:gsub("%s+", ""))
         if isLatin(word) then
-            out[#out + 1] = { latin = true, pattern = "%f[%w]" .. escapePattern(word) .. "%f[^%w]" }
+            out[#out + 1] = { latin = true, pattern = "%f[%w]" .. escapePattern(word) .. "%f[^%w]", plain = plain }
         else
-            out[#out + 1] = { latin = false, plain = (word:gsub("%s+", "")) }
+            out[#out + 1] = { latin = false, plain = plain }
         end
     end
     return out
@@ -76,6 +77,21 @@ local function hasAny(matchers, msg)
         end
     end
     return false
+end
+
+-- the longest word of the list found in the message (spaces removed), or nil
+local function longestMatch(matchers, msg)
+    local best
+    for _, m in ipairs(matchers) do
+        local found
+        if m.latin then
+            found = msg.spaced:find(m.pattern) ~= nil
+        else
+            found = msg.compact:find(m.plain, 1, true) ~= nil
+        end
+        if found and (not best or #m.plain > #best) then best = m.plain end
+    end
+    return best
 end
 
 local M = {
@@ -168,17 +184,36 @@ function ns.ParseMessage(text)
     local isGuildAd = hasAny(M.guildMember, msg) or (hasAny(M.guild, msg) and hasAny(M.guildAd, msg))
     if isGuildAd then return nil end
 
-    local keys, seen = {}, {}
+    local keys, seen, word = {}, {}, {}
     for _, entry in ipairs(dungeonMatchers) do
-        if hasAny(entry.matchers, msg) then
+        local found = longestMatch(entry.matchers, msg)
+        if found then
             keys[#keys + 1] = entry.dungeon.key
             seen[entry.dungeon.key] = true
+            word[entry.dungeon.key] = found
+        end
+    end
+    -- a short form inside another dungeon's longer name is that dungeon
+    -- ("감옥" in "알카즈 감옥", "나락" in "검은심연 나락", "dm" in "dm east")
+    for i = #keys, 1, -1 do
+        local mine = word[keys[i]]
+        for _, other in ipairs(keys) do
+            local theirs = word[other]
+            if other ~= keys[i] and #theirs > #mine and theirs:find(mine, 1, true) then
+                seen[keys[i]] = nil
+                tremove(keys, i)
+                break
+            end
         end
     end
     -- a wing beats its parent ("수도원 도서관" is the Library, not every wing)
+    local direMaulWing = seen.dme or seen.dmw or seen.dmn
     for i = #keys, 1, -1 do
         local key = keys[i]
-        if key == "sm" and (seen.smgy or seen.smlib or seen.smarm or seen.smcath) then tremove(keys, i) end
+        if key == "sm" and (seen.smgy or seen.smlib or seen.smarm or seen.smcath) then tremove(keys, i)
+        elseif key == "dmaul" and direMaulWing then tremove(keys, i)
+        -- "dm east" is a Dire Maul wing, not the Deadmines ("dm")
+        elseif key == "dm" and direMaulWing then tremove(keys, i) end
     end
 
     local roles = ns.ParseRoles(msg.lower)
@@ -212,6 +247,7 @@ function ns.ParseMessage(text)
 
     return {
         text = clean,
+        display = ns.DisplayText(text),
         kind = kind,
         keys = keys,
         key = keys[1],
