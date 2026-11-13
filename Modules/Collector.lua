@@ -20,6 +20,8 @@ local LFG_WORDS = {
     "lfg", "lf group", "lf grp", "looking for group", "lf party",
     "파티구", "팟구", "파티찾", "팟찾", "껴주", "끼워", "데려가", "구직",
 }
+-- recruitment words that contain "파티구" / "팟구" ("파티구성", "팟 구인"); removed before the LFG check
+local NOT_LFG_WORDS = { "파티구성", "팟구성", "파티구인", "팟구인", "파티구하는분", "팟구하는분" }
 local LFM_WORDS = {
     "lfm", "lf1m", "lf2m", "lf3m", "lf4m", "lf",
     "구함", "구해", "구합", "구하는", "구인", "모집", "오실분", "모십", "모셔", "갈분", "가실분", "갈사람", "급구", "자리남", "남은자리",
@@ -53,14 +55,25 @@ local function escapePattern(word)
     return (word:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"))
 end
 
+-- "dm:e" -> "dme", "zul'farrak" -> "zulfarrak"; a colon only joins a single letter ("tank:1" stays apart)
+local function joinShort(s)
+    s = s:gsub("(%a)'(%a)", "%1%2")
+    return (s:gsub("(%a):(%a)%f[%A]", "%1%2"))
+end
+
 -- Pre-compiles a word list into matchers.
 local function compile(words)
     local out = {}
     for _, word in ipairs(words) do
         word = ns.LowerText(word)
+        if isLatin(word) then
+            -- the same clean-up as the message text (see normalize)
+            word = joinShort(word):gsub("%p", " "):gsub("%s+", " "):gsub("^ ", ""):gsub(" $", "")
+        end
         local plain = (word:gsub("%s+", ""))
         if isLatin(word) then
-            out[#out + 1] = { latin = true, pattern = "%f[%w]" .. escapePattern(word) .. "%f[^%w]", plain = plain }
+            out[#out + 1] = { latin = true, alpha = word:find("%a") ~= nil,
+                pattern = "%f[%w]" .. escapePattern(word) .. "%f[^%w]", plain = plain }
         else
             out[#out + 1] = { latin = false, plain = plain }
         end
@@ -71,7 +84,8 @@ end
 local function hasAny(matchers, msg)
     for _, m in ipairs(matchers) do
         if m.latin then
-            if msg.spaced:find(m.pattern) then return true end
+            -- a line without Latin letters cannot hold a Latin word (hasLatin nil: not known)
+            if (msg.hasLatin ~= false or not m.alpha) and msg.spaced:find(m.pattern) then return true end
         elseif msg.compact:find(m.plain, 1, true) then
             return true
         end
@@ -85,7 +99,7 @@ local function longestMatch(matchers, msg)
     for _, m in ipairs(matchers) do
         local found
         if m.latin then
-            found = msg.spaced:find(m.pattern) ~= nil
+            found = (msg.hasLatin ~= false or not m.alpha) and msg.spaced:find(m.pattern) ~= nil
         else
             found = msg.compact:find(m.plain, 1, true) ~= nil
         end
@@ -116,9 +130,9 @@ end
 local function normalize(text)
     local lower = ns.LowerText(text)
     for _, noise in ipairs(ROLE_NOISE) do lower = lower:gsub(noise, " ") end
-    local spaced = " " .. lower:gsub("%p", " "):gsub("%s+", " ") .. " "
+    local spaced = " " .. joinShort(lower):gsub("%p", " "):gsub("%s+", " ") .. " "
     spaced = spaced:gsub("%f[%w]dm me%f[^%w]", " ")   -- "dm me" = direct message
-    return { lower = lower, spaced = spaced, compact = lower:gsub("%s+", "") }
+    return { lower = lower, spaced = spaced, compact = (lower:gsub("%s+", "")), hasLatin = spaced:find("%a") ~= nil }
 end
 
 -----------------------------------------------------------------------------
@@ -127,7 +141,8 @@ end
 -----------------------------------------------------------------------------
 local function rolesIn(piece)
     local found = {}
-    local probe = { lower = piece, spaced = " " .. piece:gsub("%p", " ") .. " ", compact = piece:gsub("%s+", "") }
+    local probe = { lower = piece, spaced = " " .. piece:gsub("%p", " ") .. " ", compact = (piece:gsub("%s+", "")),
+        hasLatin = piece:find("%a") ~= nil }
     if hasAny(M.tank, probe) then found.tank = true end
     if hasAny(M.healer, probe) then found.healer = true end
     if hasAny(M.dps, probe) then found.dps = true end
@@ -219,8 +234,15 @@ function ns.ParseMessage(text)
     local roles = ns.ParseRoles(msg.lower)
     local hasRole = roles.tank or roles.healer or roles.dps
 
+    local lfgMsg = msg
+    for _, word in ipairs(NOT_LFG_WORDS) do
+        if msg.compact:find(word, 1, true) then
+            local compact = lfgMsg.compact:gsub(word, "|")
+            lfgMsg = { lower = msg.lower, spaced = msg.spaced, compact = compact, hasLatin = msg.hasLatin }
+        end
+    end
     local kind
-    if hasAny(M.lfg, msg) then
+    if hasAny(M.lfg, lfgMsg) then
         kind = "lfg"
     elseif hasAny(M.lfm, msg) then
         kind = "lfm"
@@ -400,7 +422,8 @@ end
 local function shouldAlert(post, previous)
     local db = ns.db
     if post.mine or not ns.PostVisible(post) then return false end
-    if previous and previous.key == post.key and post.time - previous.firstTime < 300 then return false end
+    -- the same sender's reposts alert at most once every 5 minutes
+    if post.lastAlert and post.time - post.lastAlert < 300 then return false end
     for _, key in ipairs(post.keys) do
         local dungeon = ns.DungeonByKey[key]
         if db.watch[key] or (dungeon and dungeon.parent and db.watch[dungeon.parent]) then return true end
@@ -435,8 +458,9 @@ function ns.FlushPendingAlerts()
     end
 end
 
+-- true when the alert was printed or queued
 local function alert(post)
-    if ns.MainWindowShown and ns.MainWindowShown() then return end
+    if ns.MainWindowShown and ns.MainWindowShown() then return false end
     if InCombatLockdown() then
         for i = #pendingAlerts, 1, -1 do
             if pendingAlerts[i].sender == post.sender then tremove(pendingAlerts, i) end
@@ -450,6 +474,7 @@ local function alert(post)
         local sound = SOUNDKIT and (SOUNDKIT.TELL_MESSAGE or SOUNDKIT.IG_PLAYER_INVITE)
         if sound then pcall(PlaySound, sound, "Master") end
     end
+    return true
 end
 
 -----------------------------------------------------------------------------
@@ -511,7 +536,7 @@ local function onChat(event, text, sender, _, channelName, _, _, _, _, channelBa
     post.class = senderClass(guid) or (previous and previous.class)
     post.channel = channelLabel(event, channelName, channelBaseName)
     post.time = now
-    post.firstTime = (previous and previous.key == post.key) and previous.firstTime or now
+    post.lastAlert = (previous and previous.key == post.key) and previous.lastAlert or nil
     post.mine = ns.IsMe(guid, post.shortName)
     post.searchText = ns.LowerText(post.text .. " " .. post.shortName)
 
@@ -519,7 +544,7 @@ local function onChat(event, text, sender, _, channelName, _, _, _, _, channelBa
     tinsert(ns.Posts, 1, post)
     postBySender[sender] = post
 
-    if shouldAlert(post, previous) then alert(post) end
+    if shouldAlert(post, previous) and alert(post) then post.lastAlert = now end
     notify()
 end
 

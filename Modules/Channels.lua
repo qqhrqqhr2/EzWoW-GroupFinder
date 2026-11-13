@@ -131,6 +131,16 @@ local function characterKey()
     return guid
 end
 
+-- The player's leave of the group-finding channel, kept per character so it lasts
+-- through /reload (cleared on a real login). value: true / false to set, nil to read.
+local function savedLeft(value)
+    local key = characterKey()
+    if not (key and ns.db) then return false end
+    if type(ns.db.lfgLeft) ~= "table" then ns.db.lfgLeft = {} end
+    if value ~= nil then ns.db.lfgLeft[key] = value or nil end
+    return ns.db.lfgLeft[key] == true
+end
+
 -- true when nothing is left to do (done now, done before, or not needed)
 local function fixLFGOrder()
     local key = characterKey()
@@ -139,12 +149,13 @@ local function fixLFGOrder()
     if ns.db.lfgOrderFixed[key] then return true end
     local lfg, first = ns.GetJoinedLFGChannel(), firstGameChannel()
     if not (lfg and first) then return false end
-    ns.db.lfgOrderFixed[key] = true
     local swap = C_ChatInfo and type(C_ChatInfo.SwapChatChannelsByChannelIndex) == "function"
         and C_ChatInfo.SwapChatChannelsByChannelIndex
-    if swap and lfg.id < first.id and not (InCombatLockdown and InCombatLockdown()) then
+    if swap and lfg.id < first.id then
+        if InCombatLockdown and InCombatLockdown() then return false end  -- retried after combat
         pcall(swap, lfg.id, first.id)
     end
+    ns.db.lfgOrderFixed[key] = true
     return true
 end
 
@@ -159,25 +170,35 @@ function ns.EnsureLFGChannel(fromOption)
     if fromOption == true then
         lfgLeftByPlayer = false
         lfgJoinedOnce = false
+        savedLeft(false)
     end
-    for _, name in ipairs(ns.GetCustomChannelNames()) do joinChannel(name) end
-    if ns.GetJoinedLFGChannel() then
-        lfgJoinedOnce = true
-        if not fixLFGOrder() and waitedFor < GAME_CHANNEL_WAIT then
+    if savedLeft() then lfgLeftByPlayer = true end
+    local function retryLater()
+        if waitedFor < GAME_CHANNEL_WAIT then
             waitedFor = waitedFor + 3
             C_Timer.After(3, function() ns.EnsureLFGChannel() end)
         end
-    elseif ns.db.autoJoinLFG and not lfgJoinedOnce and not lfgLeftByPlayer
-        and not firstGameChannel() and waitedFor < GAME_CHANNEL_WAIT then
-        -- the game's own channels are not there yet: wait so they keep their numbers
-        waitedFor = waitedFor + 3
-        C_Timer.After(3, function() ns.EnsureLFGChannel() end)
-        return
+    end
+    -- the game's own channels are there (or we stopped waiting): others may join now
+    -- without taking their numbers
+    local gameReady = firstGameChannel() ~= nil or waitedFor >= GAME_CHANNEL_WAIT
+    local customs = ns.GetCustomChannelNames()
+    if gameReady then
+        for _, name in ipairs(customs) do joinChannel(name) end
+    end
+    if ns.GetJoinedLFGChannel() then
+        lfgJoinedOnce = true
+        if not fixLFGOrder() or (not gameReady and #customs > 0) then retryLater() end
     elseif ns.db.autoJoinLFG and not lfgJoinedOnce and not lfgLeftByPlayer then
+        -- the game's own channels are not there yet: wait so they keep their numbers
+        if not gameReady then retryLater() return end
         -- the same as typing /join 파티찾기 (or /join LookingForGroup)
         local locale = type(GetLocale) == "function" and GetLocale() or ""
         local name = ns.FindLFGServerChannel() or (locale == "koKR" and "파티찾기" or "LookingForGroup")
         joinChannel(name)
+    elseif not gameReady and #customs > 0 then
+        retryLater()
+        return
     end
     C_Timer.After(2, function() if ns.NotifyPostsChanged then ns.NotifyPostsChanged() end end)
 end
@@ -203,15 +224,21 @@ local watcher = CreateFrame("Frame")
 pcall(watcher.RegisterEvent, watcher, "PLAYER_ENTERING_WORLD")
 pcall(watcher.RegisterEvent, watcher, "PLAYER_LEAVING_WORLD")
 pcall(watcher.RegisterEvent, watcher, "CHANNEL_UI_UPDATE")
-pcall(watcher.RegisterEvent, watcher, "CHANNEL_NOTICE")
+pcall(watcher.RegisterEvent, watcher, "CHAT_MSG_CHANNEL_NOTICE")
+pcall(watcher.RegisterEvent, watcher, "PLAYER_REGEN_ENABLED")
 watcher:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
         lastLoadingTime = nowTime()
+        local isInitialLogin = ...
+        if isInitialLogin == true then savedLeft(false) end
         -- the default channels are joined a few seconds after login
         C_Timer.After(6, function() ns.EnsureLFGChannel() end)
     elseif event == "PLAYER_LEAVING_WORLD" then
         lastLoadingTime = nowTime()
-    elseif event == "CHANNEL_NOTICE" then
+    elseif event == "PLAYER_REGEN_ENABLED" then
+        -- a channel swap skipped in combat
+        fixLFGOrder()
+    elseif event == "CHAT_MSG_CHANNEL_NOTICE" then
         local notice = ...
         local channelName = select(9, ...)
         local channelString = select(4, ...)
@@ -219,10 +246,14 @@ watcher:SetScript("OnEvent", function(_, event, ...)
         local isLFG = ns.IsLFGChannelName(channelName) or ns.IsLFGChannelName(channelString)
         if isLFG and notice == "YOU_LEFT" then
             -- ignore leaves the client makes around a loading screen
-            if nowTime() - lastLoadingTime > 5 then lfgLeftByPlayer = true end
+            if nowTime() - lastLoadingTime > 5 then
+                lfgLeftByPlayer = true
+                savedLeft(true)
+            end
         elseif isLFG and (notice == "YOU_JOINED" or notice == "YOU_CHANGED") then
             lfgJoinedOnce = true
             lfgLeftByPlayer = false
+            savedLeft(false)
         end
     elseif ns.NotifyPostsChanged then
         ns.NotifyPostsChanged()
