@@ -22,7 +22,7 @@
 ## Notes-zhTW: 按地城整理聊天中的組隊訊息，並幫助你輕鬆發佈招募。(/ezgf)
 ## X-License: GPL-3.0
 ## Author: qqhrqqhr2
-## Version: 1.0.7
+## Version: 1.0.8
 ## Category: EzWoW
 ## IconTexture: Interface\AddOns\EzWoW-GroupFinder\Media\Icon
 ## SavedVariables: EzWoW_GroupFinderDB, EzWoW_SharedData
