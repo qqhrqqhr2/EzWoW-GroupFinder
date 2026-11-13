@@ -13,7 +13,7 @@ A group finder for WoW Forever. It collects the group posts people write in chat
 
 ![Settings window](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/settings_en.png)
 
-*Mock-ups rebuilt from the window sizes, coordinates, colours and strings in the addon code. Character names and posts are made up.*
+*In-game screenshots (WoW Forever, Korean client). Character and player names and chat text are blurred.*
 
 ## Features
 
@@ -29,6 +29,7 @@ A group finder for WoW Forever. It collects the group posts people write in chat
 ### Write Post
 - Pick the post type, dungeon, roles, group size and a note to build the message; edit it freely before sending.
 - Choose a channel and send with one click (at most once every 30 seconds).
+- **Repost reminder**: after you post, a 'Post again' button and a sound remind you when the chosen interval has passed. Game rules need a click or key press to send chat, so it never posts by itself (a key binding is available). It stops when the group is full or after 10 posts.
 
 ### Alerts
 - Right-click a dungeon in the list (star) to be alerted about its new posts.
@@ -75,7 +76,7 @@ WoW Forever용 파티 찾기 애드온입니다. 채팅에 올라온 파티 모�
 
 ![설정창](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/settings_ko.png)
 
-*애드온 코드의 창 크기·좌표·색상·문구로 재현한 예시 화면입니다. 캐릭터 이름과 글은 예시입니다.*
+*실제 게임 화면입니다(WoW Forever, 한국어 클라이언트). 캐릭터 · 다른 플레이어 이름과 채팅 내용은 가렸습니다.*
 
 ## 기능
 
@@ -91,6 +92,7 @@ WoW Forever용 파티 찾기 애드온입니다. 채팅에 올라온 파티 모�
 ### 모집 글 쓰기
 - 모집 방식, 던전, 역할, 인원, 메모를 고르면 글을 만들어 줍니다. 보내기 전에 직접 고칠 수 있습니다.
 - 보낼 채널을 고르고 버튼 한 번으로 보냅니다(30초에 한 번까지).
+- **반복 알림**: 모집 글을 보낸 뒤 정한 간격이 지나면 '다시 올리기' 버튼과 소리로 알려 줍니다. 채팅 글은 게임 규칙상 직접 눌러야 보낼 수 있어 자동으로 올리지는 않습니다(단축키 지원). 파티가 차거나 10번 올리면 멈춥니다.
 
 ### 알림
 - 목록에서 던전을 오른쪽 클릭하면(별 표시) 그 던전의 새 글이 올라올 때 알려 줍니다.

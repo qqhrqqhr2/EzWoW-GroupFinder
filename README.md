@@ -11,14 +11,14 @@ Collects group posts from chat by dungeon and helps you write and send your own.
 
 ![설정창](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/settings_ko.png)
 
-> 애드온 코드의 창 크기·좌표·색상·문구로 재현한 예시 화면입니다. 캐릭터 이름과 글은 예시입니다.
+> 실제 게임 화면입니다(WoW Forever, 한국어 클라이언트). 캐릭터 · 다른 플레이어 이름과 채팅 내용은 가렸습니다.
 
 ### 파티 찾기
 - 채팅 채널(공개·파티찾기·거래 등), 일반 대화·외치기, 길드 대화(선택)에서 파티 모집 글을 자동으로 모읍니다.
-- 서버 파티찾기 채널에는 접속할 때마다 한 번 자동으로 들어갑니다. 직접 나가면 다음 접속까지 다시 들어가지 않습니다.
+- 서버 파티찾기 채널에는 접속할 때마다 한 번 자동으로 들어갑니다. 공개·거래 같은 기본 채널의 번호는 밀어내지 않습니다. 직접 나가면 다음 접속까지 다시 들어가지 않습니다.
 - 설정에 적어 둔 채널에도 보이지 않게 들어가 글을 모읍니다(채팅창에는 표시되지 않음).
 - 던전별로 나눠 보여 주고, 지금 레벨에 맞는 던전은 레벨 범위를 민트색으로 표시합니다. `내 레벨 추천`에서 한 번에 볼 수 있습니다.
-- 글마다 구인/구직/버스, 필요한 역할(탱·힐·딜), 인원, 레벨, 올린 시간이 표시됩니다.
+- 목록은 구분·던전·포지션·인원·레벨·시간 칸으로 나뉘고, 글마다 구인/구직/버스, 필요한 역할(탱·힐·딜), 인원, 레벨, 올린 시간이 표시됩니다.
 - 같은 사람이 다시 올리면 새 글로 바뀌고, 정해진 시간(기본 10분, 3~30분)이 지나면 사라집니다.
 - 글을 클릭하면 귓속말, 구직 글에는 초대 버튼이 있습니다. Alt+클릭으로 그 사람 글을 숨깁니다(설정에서 되돌리기).
 - 검색과 필터: 구인·구직, 버스 숨기기, 내 레벨만.
@@ -27,6 +27,7 @@ Collects group posts from chat by dungeon and helps you write and send your own.
 ### 모집 글 쓰기
 - 모집 방식, 던전, 역할, 인원, 메모를 고르면 글을 만들어 줍니다. 보내기 전에 직접 고칠 수 있습니다.
 - 보낼 채널을 고르고 버튼 한 번으로 보냅니다. 도배 방지를 위해 30초에 한 번까지 보낼 수 있습니다.
+- **반복 알림**: 모집 글을 보낸 뒤 정한 간격이 지나면 '다시 올리기' 버튼과 소리로 알려 줍니다. 채팅 글은 게임 규칙상 직접 눌러야 보낼 수 있어 자동으로 올리지는 않습니다(단축키 지원). 파티가 차거나 10번 올리면 멈춥니다.
 
 ### 알림
 - 목록에서 던전을 오른쪽 클릭하면(별 표시) 그 던전의 새 글이 올라올 때 알려 줍니다.
@@ -56,14 +57,14 @@ Collects group posts from chat by dungeon and helps you write and send your own.
 
 ![Settings window](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/settings_en.png)
 
-> Mock-ups rebuilt from the window sizes, coordinates, colours and strings in the addon code. Character names and posts are made up.
+> In-game screenshots (WoW Forever, Korean client). Character and player names and chat text are blurred.
 
 ### Find Group
 - Collects group posts from chat channels (General, LFG, Trade, ...), Say/Yell and, optionally, guild chat.
-- Joins the server's LFG channel once per login. If you leave it, it stays left until your next login.
+- Joins the server's LFG channel once per login without pushing General, Trade and other channels off their numbers. If you leave it, it stays left until your next login.
 - Also joins the channels you list in the settings in the background (hidden from your chat windows).
 - Sorted by dungeon; level ranges that suit you are highlighted in mint, and `For My Level` shows them all at once.
-- Each post shows LFM/LFG/boost, roles needed, group size, level and age.
+- The list has type, dungeon, role, size, level and time columns: each post shows LFM/LFG/boost, roles needed, group size, level and age.
 - A player's newer post replaces the older one; posts expire after 10 minutes (3–30, adjustable).
 - Click a post to whisper; LFG posts have an Invite button. Alt+Click hides that player (undo in the settings).
 - Search and filters: LFM/LFG, hide boosts, my level only.
@@ -72,6 +73,7 @@ Collects group posts from chat by dungeon and helps you write and send your own.
 ### Write Post
 - Pick the post type, dungeon, roles, group size and a note to build the message; edit it freely before sending.
 - Choose a channel and send with one click (at most once every 30 seconds).
+- **Repost reminder**: after you post, a 'Post again' button and a sound remind you when the chosen interval has passed. Game rules need a click or key press to send chat, so it never posts by itself (a key binding is available). It stops when the group is full or after 10 posts.
 
 ### Alerts
 - Right-click a dungeon in the list (star) to be alerted about its new posts.
