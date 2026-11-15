@@ -70,7 +70,7 @@ ns.COMPOSE_DEFAULTS = {
     roles   = {},
     size    = 1,
     note    = "",
-    channel = nil,
+    channels = nil,   -- picked send targets (Modules/Composer.lua)
 }
 
 -----------------------------------------------------------------------------

@@ -36,15 +36,37 @@ local function rolesText(roles, lang)
     return table.concat(out, ", ")
 end
 
--- Trims to the 255-byte chat limit without splitting a multi-byte letter.
-local function clampChat(text)
-    if #text <= 255 then return text end
-    local cut = 255
+-- Where the item / quest links are: { {first byte, last byte}, ... } with
+-- their colour code and "|r" (a link cut in two is not sent by the game).
+local function linkSpans(text)
+    local spans, pos = {}, 1
+    while true do
+        local s, e = text:find("|H.-|h.-|h", pos)
+        if not s then break end
+        local before = text:sub(1, s - 1)
+        local colour = before:match("()|c%x%x%x%x%x%x%x%x$") or before:match("()|cn[^|:]*:$")
+        if colour then s = colour end
+        if text:sub(e + 1, e + 2) == "|r" then e = e + 2 end
+        spans[#spans + 1] = { s, e }
+        pos = e + 1
+    end
+    return spans
+end
+
+-- Trims to the 255-byte chat limit without splitting a multi-byte letter or a link.
+local function clampChat(text, limit)
+    limit = limit or 255
+    if #text <= limit then return text end
+    local cut = limit
     while cut > 1 and string.byte(text, cut + 1) and string.byte(text, cut + 1) >= 128 and string.byte(text, cut + 1) < 192 do
         cut = cut - 1
     end
-    return text:sub(1, cut)
+    for _, span in ipairs(linkSpans(text)) do
+        if span[1] <= cut and span[2] > cut then cut = span[1] - 1 break end
+    end
+    return (text:sub(1, cut):gsub("%s+$", ""))
 end
+ns.ClampChat = clampChat
 
 function ns.BuildPostText(c)
     local lang = chatLang()
@@ -77,18 +99,48 @@ function ns.BuildPostText(c)
 end
 
 -----------------------------------------------------------------------------
--- Send targets
+-- Send targets: "say", "yell", "guild" or "c:<channel>". A zone channel is
+-- kept without its zone ("공개 - 엘윈 숲" -> "c:공개") so it stays picked in
+-- every zone. Several targets can be picked; one click posts to all of them.
 -----------------------------------------------------------------------------
+local function channelBase(name)
+    return (name:match("^(.-) %- ") or name)
+end
+
 local function joinedChannels()
     local out = {}
     if type(GetChannelName) ~= "function" then return out end
-    for index = 1, 20 do
+    for index = 1, 30 do
         local ok, id, name = pcall(GetChannelName, index)
-        if ok and type(id) == "number" and id > 0 and type(name) == "string" and not ns.IsSecret(name) and name ~= "" then
-            out[#out + 1] = { id = id, name = name }
+        if ok and type(id) == "number" and id > 0 and type(name) == "string" and not ns.IsSecret(name) and name ~= ""
+            -- the hidden EzWoW data channels are not for chat
+            and not ns.LowerText(name):find("^ezwow") then
+            out[#out + 1] = { id = id, name = name, base = channelBase(name) }
         end
     end
     return out
+end
+
+-- "c:공개 - 가시덤불" (older saves) -> "c:공개"; nil for anything unknown
+function ns.NormalizeTarget(value)
+    if value == "say" or value == "yell" or value == "guild" then return value end
+    if type(value) == "string" and value:sub(1, 2) == "c:" and #value > 2 then
+        return "c:" .. channelBase(value:sub(3))
+    end
+    return nil
+end
+
+local function sameTarget(a, b)
+    return a == b or (type(a) == "string" and type(b) == "string" and ns.LowerText(a) == ns.LowerText(b))
+end
+
+-- the joined channel for "c:<name>", or nil when not in it right now
+local function findChannel(value)
+    local base = value:sub(3)
+    for _, channel in ipairs(joinedChannels()) do
+        if sameTarget(channel.base, base) then return channel end
+    end
+    return nil
 end
 
 local function inGuild()
@@ -97,11 +149,12 @@ local function inGuild()
     return ok and value == true
 end
 
--- { value = "say" | "yell" | "guild" | "c:<channel name>", text = label }
+-- { value = "say" | "yell" | "guild" | "c:<channel name>", text = label, short = short label }
 function ns.GetSendTargets()
     local items = {}
     for _, channel in ipairs(joinedChannels()) do
-        items[#items + 1] = { value = "c:" .. channel.name, text = channel.id .. ". " .. channel.name }
+        items[#items + 1] = { value = "c:" .. channel.base, text = channel.id .. ". " .. channel.name,
+            short = channel.id .. ". " .. channel.base }
     end
     items[#items + 1] = { value = "say", text = function() return ns:L("chSay") end }
     items[#items + 1] = { value = "yell", text = function() return ns:L("chYell") end }
@@ -118,27 +171,122 @@ function ns.DefaultSendTarget()
     -- the player's own group channels first, then the server's group-finding channel
     for _, custom in ipairs(ns.GetCustomChannelNames and ns.GetCustomChannelNames() or {}) do
         for _, channel in ipairs(channels) do
-            if ns.LowerText(channel.name) == ns.LowerText(custom) then return "c:" .. channel.name end
+            if ns.LowerText(channel.name) == ns.LowerText(custom) then return "c:" .. channel.base end
         end
     end
     for _, channel in ipairs(channels) do
-        if ns.IsLFGChannelName and ns.IsLFGChannelName(channel.name) then return "c:" .. channel.name end
+        if ns.IsLFGChannelName and ns.IsLFGChannelName(channel.name) then return "c:" .. channel.base end
     end
     for _, word in ipairs(PREFERRED) do
         for _, channel in ipairs(channels) do
-            if ns.LowerText(channel.name):find(word, 1, true) then return "c:" .. channel.name end
+            if ns.LowerText(channel.name):find(word, 1, true) then return "c:" .. channel.base end
         end
     end
     return "say"
 end
 
-function ns.SendTargetLabel(value)
+local function findItem(value)
     for _, item in ipairs(ns.GetSendTargets()) do
-        if item.value == value then
-            return type(item.text) == "function" and item.text() or item.text
-        end
+        if sameTarget(item.value, value) then return item end
     end
     return nil
+end
+
+local function itemText(item, short)
+    local text = short and item.short or item.text
+    if type(text) == "function" then text = text() end
+    return text
+end
+
+function ns.SendTargetLabel(value)
+    local item = findItem(value)
+    return item and itemText(item) or nil
+end
+
+-- The picked targets of the post tab (compose state): cleaned, never empty.
+-- Targets not available right now (a city channel outside the city) stay
+-- picked; they are left out when sending.
+function ns.ComposeTargets(c)
+    local list = type(c.channels) == "table" and c.channels or {}
+    if #list == 0 and type(c.channel) == "string" then list[1] = c.channel end
+    c.channel = nil
+    local out = {}
+    for _, value in ipairs(list) do
+        value = ns.NormalizeTarget(value)
+        local dup = false
+        for _, have in ipairs(out) do
+            if sameTarget(have, value) then dup = true break end
+        end
+        if value and not dup then out[#out + 1] = value end
+    end
+    if #out == 0 then out[1] = ns.DefaultSendTarget() end
+    c.channels = out
+    return out
+end
+
+function ns.IsTargetPicked(c, value)
+    for _, have in ipairs(ns.ComposeTargets(c)) do
+        if sameTarget(have, value) then return true end
+    end
+    return false
+end
+
+-- Picks or unpicks one target; the last one stays picked.
+function ns.ToggleTarget(c, value)
+    local list = ns.ComposeTargets(c)
+    for i, have in ipairs(list) do
+        if sameTarget(have, value) then
+            if #list > 1 then table.remove(list, i) end
+            return
+        end
+    end
+    value = ns.NormalizeTarget(value)
+    if value then list[#list + 1] = value end
+end
+
+-- Menu rows: what can be picked now, then picked targets that are not available now.
+function ns.TargetMenuItems(c)
+    local items = ns.GetSendTargets()
+    for _, value in ipairs(ns.ComposeTargets(c)) do
+        if not findItem(value) then
+            items[#items + 1] = { value = value, text = value:sub(1, 2) == "c:" and value:sub(3) or value,
+                sub = ns:L("chGone"), color = ns.Style and ns.Style.textMuted }
+        end
+    end
+    return items
+end
+
+-- Button text for the picked targets ("1. 공개, 2. 파티찾기").
+function ns.TargetsLabel(c)
+    local list = ns.ComposeTargets(c)
+    local parts = {}
+    for _, value in ipairs(list) do
+        local item = findItem(value)
+        if item then
+            parts[#parts + 1] = itemText(item, #list > 1)
+        else
+            parts[#parts + 1] = "|cff7f7f7f" .. (value:sub(1, 2) == "c:" and value:sub(3) or value)
+                .. " (" .. ns:L("chGone") .. ")|r"
+        end
+    end
+    return table.concat(parts, ", ")
+end
+
+-- Picked targets in menu order (channels by number, then say / yell / guild).
+local function orderedTargets(list)
+    local out, used = {}, {}
+    for _, item in ipairs(ns.GetSendTargets()) do
+        for i, value in ipairs(list) do
+            if not used[i] and sameTarget(item.value, value) then
+                used[i] = true
+                out[#out + 1] = value
+            end
+        end
+    end
+    for i, value in ipairs(list) do
+        if not used[i] then out[#out + 1] = value end
+    end
+    return out
 end
 
 function ns.SendCooldownLeft()
@@ -156,28 +304,73 @@ local function sendChat(text, chatType, target)
     return false
 end
 
--- Must run from a click (channel messages need a hardware event).
-function ns.SendPost(text, targetValue)
-    text = clampChat(((text or ""):gsub("[\r\n]+", " ")):gsub("^%s+", ""):gsub("%s+$", ""))
+local function sendTo(text, value)
+    if value == "say" then return sendChat(text, "SAY") end
+    if value == "yell" then return sendChat(text, "YELL") end
+    if value == "guild" then return inGuild() and sendChat(text, "GUILD") end
+    if type(value) == "string" and value:sub(1, 2) == "c:" then
+        local channel = findChannel(value)
+        if channel then return sendChat(text, "CHANNEL", channel.id) end
+    end
+    return false
+end
+
+-- Must run from a click (channel messages need a hardware event); one click
+-- posts to every picked target. targets: one value or a list.
+-- Returns sent (true/false), how many got it, how many were picked.
+function ns.SendPost(text, targets)
+    text = ((text or ""):gsub("[\r\n]+", " "):gsub("^%s+", ""):gsub("%s+$", ""))
+    text = clampChat(text)
     if text == "" then return false end
     if ns.SendCooldownLeft() > 0 then return false end
-    local ok
-    if targetValue == "say" then
-        ok = sendChat(text, "SAY")
-    elseif targetValue == "yell" then
-        ok = sendChat(text, "YELL")
-    elseif targetValue == "guild" then
-        ok = sendChat(text, "GUILD")
-    elseif type(targetValue) == "string" and targetValue:sub(1, 2) == "c:" then
-        local okId, id = pcall(GetChannelName, targetValue:sub(3))
-        if not okId or type(id) ~= "number" or id <= 0 then
-            ns.Print(ns:L("noChannel"))
-            return false
-        end
-        ok = sendChat(text, "CHANNEL", id)
+    if type(targets) ~= "table" then targets = { targets } end
+    local sent, tried = 0, 0
+    for _, value in ipairs(orderedTargets(targets)) do
+        tried = tried + 1
+        if sendTo(text, value) then sent = sent + 1 end
     end
-    if ok then ns.lastSendTime = GetTime() end
-    return ok and true or false
+    if sent == 0 then
+        ns.Print(ns:L("noChannel"))
+        return false, 0, tried
+    end
+    ns.lastSendTime = GetTime()
+    return true, sent, tried
+end
+
+-----------------------------------------------------------------------------
+-- Quest links for the post
+-----------------------------------------------------------------------------
+-- quests in the log: { { questID, title, level }, ... } (headers and hidden ones left out)
+function ns.LogQuests()
+    local out = {}
+    if not (C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo) then return out end
+    local ok, count = pcall(C_QuestLog.GetNumQuestLogEntries)
+    count = ok and not ns.IsSecret(count) and tonumber(count) or 0
+    for i = 1, count do
+        local okInfo, info = pcall(C_QuestLog.GetInfo, i)
+        if okInfo and type(info) == "table" and not info.isHeader and not info.isHidden then
+            local id, title, level = info.questID, info.title, info.level
+            if type(id) == "number" and not ns.IsSecret(id) and id > 0
+                and type(title) == "string" and not ns.IsSecret(title) and title ~= "" then
+                out[#out + 1] = { questID = id, title = title,
+                    level = (type(level) == "number" and not ns.IsSecret(level)) and level or nil }
+            end
+        end
+    end
+    return out
+end
+
+-- the game's quest link, or the name in brackets when there is none
+function ns.QuestLink(questID, title)
+    local fns = {}
+    if C_QuestLog and type(C_QuestLog.GetQuestLink) == "function" then fns[#fns + 1] = C_QuestLog.GetQuestLink end
+    if type(GetQuestLink) == "function" then fns[#fns + 1] = GetQuestLink end
+    for _, fn in ipairs(fns) do
+        local ok, link = pcall(fn, questID)
+        if ok and type(link) == "string" and not ns.IsSecret(link) and link:find("|H", 1, true) then return link end
+    end
+    if type(title) == "string" and title ~= "" then return "[" .. title .. "]" end
+    return nil
 end
 
 -----------------------------------------------------------------------------
@@ -207,7 +400,22 @@ end
 function ns.StartRepeat(text, target, mode)
     local every = ns.RepeatInterval()
     if every <= 0 then repeatState = nil return end
-    repeatState = { text = text, target = target, mode = mode, count = 1, nextAt = GetTime() + every }
+    local targets = {}
+    for _, value in ipairs(type(target) == "table" and target or { target }) do targets[#targets + 1] = value end
+    repeatState = { text = text, target = targets, mode = mode, count = 1, nextAt = GetTime() + every }
+end
+
+-- a short sound for the reminder (the first one this client has)
+local REMIND_SOUNDS = { "MAP_PING", "IG_PLAYER_INVITE", "TELL_MESSAGE", "READY_CHECK" }
+local function playRemindSound()
+    if type(PlaySound) ~= "function" or type(SOUNDKIT) ~= "table" then return end
+    for _, key in ipairs(REMIND_SOUNDS) do
+        local id = SOUNDKIT[key]
+        if type(id) == "number" then
+            pcall(PlaySound, id, "Master")
+            return
+        end
+    end
 end
 
 local function groupDone(state)
@@ -247,7 +455,7 @@ local function repeatTick()
     if state.due or GetTime() < state.nextAt then return end
     state.due = true
     if ns.ShowRepostReminder then ns.ShowRepostReminder(state) end
-    if PlaySound and SOUNDKIT and SOUNDKIT.READY_CHECK then pcall(PlaySound, SOUNDKIT.READY_CHECK, "Master") end
+    playRemindSound()
 end
 
 if C_Timer and C_Timer.NewTicker then C_Timer.NewTicker(1, function() pcall(repeatTick) end) end

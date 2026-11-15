@@ -26,8 +26,9 @@ Collects group posts from chat by dungeon and helps you write and send your own.
 
 ### 모집 글 쓰기
 - 모집 방식, 던전, 역할, 인원, 메모를 고르면 글을 만들어 줍니다. 보내기 전에 직접 고칠 수 있습니다.
-- 보낼 채널을 고르고 버튼 한 번으로 보냅니다. 도배 방지를 위해 30초에 한 번까지 보낼 수 있습니다.
-- **반복 알림**: 모집 글을 보낸 뒤 정한 간격이 지나면 '다시 올리기' 버튼과 소리로 알려 줍니다. 채팅 글은 게임 규칙상 직접 눌러야 보낼 수 있어 자동으로 올리지는 않습니다(단축키 지원). 파티가 차거나 10번 올리면 멈춥니다.
+- 보낼 곳(채널·일반 대화·외치기·길드)을 여러 곳 골라 버튼 한 번으로 모두에게 보냅니다. 도배 방지를 위해 30초에 한 번까지 보낼 수 있습니다.
+- **링크 넣기**: 이 창이 열려 있으면 퀘스트 로그·추적기의 퀘스트나 아이템을 Shift+클릭해 메모나 보낼 글의 커서 자리에 링크를 넣습니다(채팅 입력창과 같은 방식). '퀘스트 링크' 버튼으로 퀘스트 목록에서 골라 넣을 수도 있습니다.
+- **반복 알림**: 모집 글을 보낸 뒤 정한 간격이 지나면 '다시 올리기' 버튼과 짧은 소리로 알려 줍니다. 채팅 글은 게임 규칙상 직접 눌러야 보낼 수 있어 자동으로 올리지는 않습니다(단축키 지원). 파티가 차거나 10번 올리면 멈춥니다.
 
 ### 알림
 - 목록에서 던전을 오른쪽 클릭하면(별 표시) 그 던전의 새 글이 올라올 때 알려 줍니다.
@@ -73,8 +74,9 @@ Collects group posts from chat by dungeon and helps you write and send your own.
 
 ### Write Post
 - Pick the post type, dungeon, roles, group size and a note to build the message; edit it freely before sending.
-- Choose a channel and send with one click (at most once every 30 seconds).
-- **Repost reminder**: after you post, a 'Post again' button and a sound remind you when the chosen interval has passed. Game rules need a click or key press to send chat, so it never posts by itself (a key binding is available). It stops when the group is full or after 10 posts.
+- Pick one or more places to send to (channels, Say, Yell, Guild) and post to all of them with one click (at most once every 30 seconds).
+- **Links**: while this window is open, Shift+click a quest (quest log, tracker) or an item to put its link at the cursor of the note or message, just like the chat box. The 'Quest link' button also picks one from your quest log.
+- **Repost reminder**: after you post, a 'Post again' button and a short sound remind you when the chosen interval has passed. Game rules need a click or key press to send chat, so it never posts by itself (a key binding is available). It stops when the group is full or after 10 posts.
 
 ### Alerts
 - Right-click a dungeon in the list (star) to be alerted about its new posts.

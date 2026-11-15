@@ -419,7 +419,38 @@ local function hideMenu()
 end
 UIKit.HideMenu = hideMenu
 
--- items = { { value, text, sub, color } ... }; opts = { columns, width, current, onSelect }
+-- Draws one menu row: a check box in pick-many menus, "> " before the current
+-- item in pick-one menus.
+local function paintMenuRow(row, item, opts, colWidth)
+    local S = ns.Style
+    local multi = opts.multi and true or false
+    local label = type(item.text) == "function" and item.text() or (item.text or tostring(item.value))
+    local selected
+    if multi then
+        selected = opts.isSelected and opts.isSelected(item.value) and true or false
+    else
+        selected = item.value ~= nil and item.value == opts.current
+    end
+    row.box:SetShown(multi)
+    row.boxFill:SetShown(multi)
+    row.check:SetShown(multi and selected)
+    row.text:SetPoint("LEFT", multi and 24 or 8, 0)
+    row.sub:SetText(item.sub or "")
+    local subWidth = (item.sub and item.sub ~= "") and (row.sub:GetStringWidth() + 10) or 0
+    ns.FitText(row.text, ((not multi and selected) and "> " or "") .. label, colWidth - (multi and 32 or 16) - subWidth, 11, 8)
+    if selected then
+        row.text:SetTextColor(rgba(S.accent))
+    elseif item.color then
+        row.text:SetTextColor(rgba(item.color))
+    else
+        row.text:SetTextColor(rgba(S.textBody))
+    end
+end
+
+-- items = { { value, text, sub, color } ... }
+-- opts = { columns, width, current, onSelect }  pick one: a click closes the menu
+--        { multi = true, isSelected(value), onToggle(value) }  pick many: rows have
+--        check boxes and the menu stays open
 function UIKit:ShowMenu(anchor, items, opts)
     local S = ns.Style
     if menu and menu:IsShown() and menu.anchor == anchor then
@@ -462,6 +493,18 @@ function UIKit:ShowMenu(anchor, items, opts)
             row.hl:SetAllPoints()
             row.hl:SetColorTexture(S.accent[1], S.accent[2], S.accent[3], 0.18)
             row.hl:Hide()
+            row.box = row:CreateTexture(nil, "ARTWORK")
+            row.box:SetSize(12, 12)
+            row.box:SetPoint("LEFT", 7, 0)
+            row.box:SetColorTexture(rgba(S.border))
+            row.boxFill = row:CreateTexture(nil, "ARTWORK", nil, 1)
+            row.boxFill:SetSize(10, 10)
+            row.boxFill:SetPoint("CENTER", row.box)
+            row.boxFill:SetColorTexture(rgba(S.bgInput))
+            row.check = row:CreateTexture(nil, "ARTWORK", nil, 2)
+            row.check:SetSize(6, 6)
+            row.check:SetPoint("CENTER", row.box)
+            row.check:SetColorTexture(rgba(S.accent))
             row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             row.text:SetPoint("LEFT", 8, 0)
             row.text:SetJustifyH("LEFT")
@@ -478,22 +521,21 @@ function UIKit:ShowMenu(anchor, items, opts)
         row:ClearAllPoints()
         row:SetPoint("TOPLEFT", menu, "TOPLEFT", 3 + col * colWidth, -3 - line * rowHeight)
         row:SetWidth(colWidth)
-        local label = type(item.text) == "function" and item.text() or (item.text or tostring(item.value))
-        local selected = item.value == opts.current
-        row.sub:SetText(item.sub or "")
-        local subWidth = (item.sub and item.sub ~= "") and (row.sub:GetStringWidth() + 10) or 0
-        ns.FitText(row.text, (selected and "> " or "") .. label, colWidth - 16 - subWidth, 11, 8)
-        if selected then
-            row.text:SetTextColor(rgba(S.accent))
-        elseif item.color then
-            row.text:SetTextColor(rgba(item.color))
-        else
-            row.text:SetTextColor(rgba(S.textBody))
-        end
+        row.item = item
+        paintMenuRow(row, item, opts, colWidth)
         row.value = item.value
         row:SetScript("OnClick", function(r)
+            if opts.multi then
+                if r.value ~= nil and opts.onToggle then opts.onToggle(r.value) end
+                -- the owner may refuse (e.g. the last pick), so repaint from its state
+                for j = 1, #items do
+                    local other = menu.rows[j]
+                    if other and other:IsShown() and other.item then paintMenuRow(other, other.item, opts, colWidth) end
+                end
+                return
+            end
             hideMenu()
-            if opts.onSelect then opts.onSelect(r.value) end
+            if r.value ~= nil and opts.onSelect then opts.onSelect(r.value) end
         end)
         row:Show()
     end

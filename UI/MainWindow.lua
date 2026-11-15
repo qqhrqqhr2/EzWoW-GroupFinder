@@ -10,6 +10,8 @@ local WIDTH, HEIGHT = 820, 540
 local SIDEBAR_WIDTH = 206
 local CONTENT_TOP = -100
 local FOOTER_HEIGHT = 34
+local NOTE_BYTES = 200   -- note box limit (bytes; the whole post is 255)
+local POST_BYTES = 255
 
 local window
 local browse, compose = {}, {}
@@ -511,6 +513,133 @@ local function regenerate(force)
         compose.messageEdit.programmatic = true
         compose.messageEdit:SetText(ns.BuildPostText(c))
         compose.messageEdit.programmatic = false
+        -- new text: a saved cursor spot no longer fits it (links go at the end)
+        if compose.cursor then compose.cursor.message = nil end
+    end
+end
+
+-- Puts an item or quest link at the cursor of the note or the message: the
+-- box being typed in, else the one last typed in (where its cursor was), else
+-- the message once it was edited by hand (the note no longer rebuilds it),
+-- else the note. The box keeps the focus so typing goes on after the link.
+compose.cursor = {}
+function compose.InsertLink(link)
+    if type(link) ~= "string" or link == "" or not compose.messageEdit then return false end
+    local which
+    if compose.messageEdit:HasFocus() then which = "message"
+    elseif compose.noteEdit:HasFocus() then which = "note"
+    elseif compose.lastBox then which = compose.lastBox
+    elseif compose.dirty then which = "message"
+    else which = "note" end
+    local edit = which == "message" and compose.messageEdit or compose.noteEdit
+    local limit = which == "message" and POST_BYTES or NOTE_BYTES
+    local text = edit:GetText() or ""
+    -- a link cut short by the box limit would break the post
+    if #text + #link > limit - 1 then
+        ns.Print(ns:L("linkTooLong"))
+        return true
+    end
+    if not edit:HasFocus() then
+        local pos = tonumber(compose.cursor[which]) or #text
+        edit:SetFocus()
+        pcall(edit.SetCursorPosition, edit, math.max(0, math.min(pos, #text)))
+    end
+    edit:Insert(link)
+    if which == "message" then
+        compose.dirty = true
+    else
+        composeState().note = edit:GetText() or ""
+        regenerate(false)
+    end
+    compose.UpdateByteCount()
+    return true
+end
+
+-- While the post tab is open, Shift+click on a quest (quest log, tracker) or an
+-- item (bags, chat, tooltips) puts its link into the post, as the chat box
+-- does. With the chat box open the link goes there instead, unless one of the
+-- post boxes is being typed in.
+do
+    local function chatBoxOpen()
+        local fn = (ChatFrameUtil and ChatFrameUtil.GetActiveWindow) or _G.ChatEdit_GetActiveWindow
+        if type(fn) ~= "function" then return false end
+        local ok, box = pcall(fn)
+        return ok and box ~= nil
+    end
+    local function postWantsLink()
+        if not (compose.panel and compose.panel:IsVisible() and compose.messageEdit) then return false end
+        if compose.messageEdit:HasFocus() or compose.noteEdit:HasFocus() then return true end
+        return not chatBoxOpen()
+    end
+    local function shiftClick()
+        return type(IsModifiedClick) == "function" and IsModifiedClick("CHATLINK") and true or false
+    end
+
+    local lastLink, lastAt = nil, 0
+    local function take(link)
+        -- one click can reach two of the hooks
+        if lastLink == link and GetTime() - lastAt < 0.3 then return true end
+        lastLink, lastAt = link, GetTime()
+        return compose.InsertLink(link)
+    end
+
+    local function onInsertLink(link)
+        if type(link) ~= "string" or ns.IsSecret(link) or not link:find("|H", 1, true) then return end
+        if not postWantsLink() then return end
+        -- with no box being typed in, only a real Shift+click (not some other window passing a link)
+        if not (compose.messageEdit:HasFocus() or compose.noteEdit:HasFocus()) and not shiftClick() then return end
+        take(link)
+    end
+
+    -- With no chat box open, the quest log turns tracking on or off on the same
+    -- Shift+click; put it back the way it was.
+    local function watched(questID)
+        if type(QuestUtils_IsQuestWatched) == "function" then
+            local ok, value = pcall(QuestUtils_IsQuestWatched, questID)
+            if ok and not ns.IsSecret(value) then return value and true or false end
+        end
+        if C_QuestLog and type(C_QuestLog.GetQuestWatchType) == "function" then
+            local ok, value = pcall(C_QuestLog.GetQuestWatchType, questID)
+            if ok and not ns.IsSecret(value) then return value ~= nil end
+        end
+        return nil
+    end
+    local function keepTracking(questID)
+        local before = watched(questID)
+        if before == nil or not (C_Timer and C_Timer.After and C_QuestLog) then return end
+        C_Timer.After(0, function()
+            local now = watched(questID)
+            if now == nil or now == before then return end
+            local fn = before and C_QuestLog.AddQuestWatch or C_QuestLog.RemoveQuestWatch
+            if type(fn) == "function" then pcall(fn, questID) end
+        end)
+    end
+
+    -- called by the quest log (and tracker) on every click of a quest title
+    local function onQuestClick(questID)
+        if type(questID) ~= "number" or ns.IsSecret(questID) or not shiftClick() then return end
+        if not postWantsLink() then return end
+        local open = chatBoxOpen()
+        local link = ns.QuestLink(questID)
+        if link and take(link) and not open then keepTracking(questID) end
+    end
+
+    -- the EzWoW quest trackers hand a Shift+clicked quest here when no chat box is open
+    _G.EzWoW_GroupFinderTakeLink = function(link)
+        if type(link) ~= "string" or link == "" or not postWantsLink() then return false end
+        return take(link) and true or false
+    end
+    local hooks = {
+        { _G, "ChatEdit_InsertLink", onInsertLink },
+        { ChatFrameUtil, "InsertLink", onInsertLink },
+        { _G, "ChatEdit_TryInsertQuestLinkForQuestID", onQuestClick },
+        { ChatFrameUtil, "TryInsertQuestLinkForQuestID", onQuestClick },
+    }
+    for _, h in ipairs(hooks) do
+        local owner, name, fn = h[1], h[2], h[3]
+        if type(owner) == "table" and type(owner[name]) == "function" then
+            hooksecurefunc(owner, name, function(arg) pcall(fn, arg) end)
+        end
     end
 end
 
@@ -603,7 +732,8 @@ local function buildCompose(parent)
     compose.noteLabel = UIKit:CreateSectionLabel(panel, x1, -290)
     local noteBox, noteEdit = UIKit:CreateEditBox(panel, 366, 28, function() return ns:L("notePlaceholder") end)
     noteBox:SetPoint("TOPLEFT", x1, -312)
-    noteEdit:SetMaxLetters(80)
+    -- bytes, not letters: an item or quest link is long
+    noteEdit:SetMaxBytes(NOTE_BYTES)
     noteEdit:SetScript("OnTextChanged", function(self, userInput)
         if userInput then
             composeState().note = self:GetText()
@@ -618,17 +748,45 @@ local function buildCompose(parent)
     compose.channelBtn = UIKit:CreateButton(panel, 366, 28, "")
     compose.channelBtn:SetPoint("TOPLEFT", x2, -28)
     compose.channelBtn:SetScript("OnClick", function(self)
-        UIKit:ShowMenu(self, ns.GetSendTargets(), {
-            current = composeState().channel,
-            onSelect = function(value) composeState().channel = value; compose.Refresh() end,
+        -- pick one or more; a click on a row turns it on or off
+        UIKit:ShowMenu(self, ns.TargetMenuItems(composeState()), {
+            multi = true,
+            isSelected = function(value) return ns.IsTargetPicked(composeState(), value) end,
+            onToggle = function(value) ns.ToggleTarget(composeState(), value); compose.Refresh() end,
         })
     end)
+    compose.channelBtn.tooltip = function() return ns:L("channelTip") end
 
     -- message
     compose.messageLabel = UIKit:CreateSectionLabel(panel, x2, -72)
     compose.rebuildBtn = UIKit:CreateButton(panel, 110, 22, "", false, "GameFontHighlightSmall")
     compose.rebuildBtn:SetPoint("TOPRIGHT", panel, "TOPLEFT", x2 + 366, -68)
     compose.rebuildBtn:SetScript("OnClick", function() regenerate(true) end)
+    -- a quest from the log into the post (the quest log itself gives links only to the chat box)
+    compose.questBtn = UIKit:CreateButton(panel, 110, 22, "", false, "GameFontHighlightSmall")
+    compose.questBtn:SetPoint("RIGHT", compose.rebuildBtn, "LEFT", -6, 0)
+    compose.questBtn:SetScript("OnClick", function(self)
+        local items = {}
+        for _, quest in ipairs(ns.LogQuests()) do
+            local questID, title = quest.questID, quest.title
+            items[#items + 1] = { value = questID, text = title, sub = quest.level and ("[" .. quest.level .. "]") or nil }
+        end
+        if #items == 0 then
+            items[1] = { text = ns:L("noQuests"), color = S().textMuted }
+        end
+        UIKit:ShowMenu(self, items, {
+            columns = #items > 18 and 2 or 1, width = 260,
+            onSelect = function(questID)
+                for _, quest in ipairs(ns.LogQuests()) do
+                    if quest.questID == questID then
+                        compose.InsertLink(ns.QuestLink(questID, quest.title))
+                        break
+                    end
+                end
+            end,
+        })
+    end)
+    compose.questBtn.tooltip = function() return ns:L("questLinkTip") end
     local msgBox, msgEdit = UIKit:CreateEditBox(panel, 366, 96, nil, true)
     msgBox:SetPoint("TOPLEFT", x2, -94)
     msgEdit:SetMaxBytes(255)
@@ -637,6 +795,11 @@ local function buildCompose(parent)
         compose.UpdateByteCount()
     end)
     msgEdit:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    -- the box last typed in and where its cursor was: links go there
+    msgEdit:HookScript("OnEditFocusGained", function() compose.lastBox = "message" end)
+    noteEdit:HookScript("OnEditFocusGained", function() compose.lastBox = "note" end)
+    msgEdit:HookScript("OnEditFocusLost", function(self) compose.cursor.message = self:GetCursorPosition() end)
+    noteEdit:HookScript("OnEditFocusLost", function(self) compose.cursor.note = self:GetCursorPosition() end)
     compose.messageEdit = msgEdit
     compose.bytes = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     compose.bytes:SetPoint("TOPRIGHT", msgBox, "BOTTOMRIGHT", -2, -4)
@@ -669,11 +832,12 @@ local function buildCompose(parent)
     compose.sendBtn:SetPoint("TOPLEFT", x2, -312 + 8)
     compose.sendBtn:SetScript("OnClick", function()
         local c = composeState()
-        c.channel = c.channel or ns.DefaultSendTarget()
+        local targets = ns.ComposeTargets(c)
         local text = compose.messageEdit:GetText()
-        if ns.SendPost(text, c.channel) then
-            compose.status = ns:L("sentMsg")
-            ns.StartRepeat(text, c.channel, c.mode)
+        local ok, sent, tried = ns.SendPost(text, targets)
+        if ok then
+            compose.status = (tried or 1) > 1 and string.format(ns:L("sentCount"), sent, tried) or ns:L("sentMsg")
+            ns.StartRepeat(text, targets, c.mode)
         end
         compose.Refresh()
     end)
@@ -710,7 +874,7 @@ end
 function compose.Refresh()
     local c = composeState()
     if not c.dungeon then c.dungeon = ns:SuggestDungeon() end
-    if not c.channel or not ns.SendTargetLabel(c.channel) then c.channel = ns.DefaultSendTarget() end
+    ns.ComposeTargets(c)
     local lfg = c.mode == "lfg"
 
     compose.modeLabel:SetText(ns:L("composeMode"))
@@ -741,9 +905,10 @@ function compose.Refresh()
     compose.noteBox.UpdatePlaceholder()
 
     compose.channelLabel:SetText(ns:L("channel"))
-    compose.channelBtn:SetLabel((ns.SendTargetLabel(c.channel) or ns:L("noChannel")) .. "  ▼")
+    compose.channelBtn:SetLabel(ns.TargetsLabel(c) .. "  ▼")
     compose.messageLabel:SetText(ns:L("message"))
     compose.rebuildBtn:SetLabel(ns:L("rebuild"))
+    compose.questBtn:SetLabel(ns:L("questLink"))
     compose.tip:SetText(ns:L("spamTip"))
     local every = tonumber(c.repeatEvery) or 0
     local everyText = every > 0 and string.format(ns:L("repeatEvery"), every % 60 == 0 and string.format(ns:L("repeatMin"), every / 60)
