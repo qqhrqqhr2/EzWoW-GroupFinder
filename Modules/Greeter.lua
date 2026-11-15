@@ -6,6 +6,8 @@
 -- greetWelcome : someone joins my party  -> "Welcome, nice to meet you!"
 -- Parties only (no raids). Several people joining at once get one line. Lines
 -- that can't be sent right now (chat locked in combat) wait a little.
+-- thankBuffs   : a player outside my group buffs me -> the /thank emote at them
+--                (see "Thanks for buffs" below)
 local ADDON_NAME, ns = ...
 local type, ipairs, pairs, pcall, tonumber = type, ipairs, pairs, pcall, tonumber
 
@@ -223,4 +225,123 @@ events:SetScript("OnEvent", function(_, event)
         return
     end
     pcall(onRoster)
+end)
+
+-----------------------------------------------------------------------------
+-- Thanks for buffs
+-----------------------------------------------------------------------------
+-- A player outside my group puts a buff on me -> DoEmote("THANK") at them.
+-- The caster is known only when the game has a unit for them (target,
+-- mouseover, focus, a shown name plate): then the emote names them. A buff
+-- from a player the game has no unit for is thanked without a name, and only
+-- while I have no target (the emote would go to my target).
+-- Out of combat and outside dungeons only, once per player every few
+-- minutes, one emote every few seconds at most.
+local THANK_AGAIN = 300   -- seconds before the same player is thanked again
+local THANK_GAP = 3       -- seconds between two emotes
+local THANK_QUEUE = 3     -- emotes waiting for their turn at most
+local thankedAt = {}      -- player GUID (or "?") -> time
+local thankQueue = {}
+local lastThank, thankTimer, quietUntil = -100, false, 0
+
+local function clock()
+    return (GetTime and GetTime()) or 0
+end
+
+local function truthy(fn, ...)
+    if type(fn) ~= "function" then return false end
+    local ok, value = pcall(fn, ...)
+    return ok and not isSecret(value) and value and true or false
+end
+
+local function thankBlocked()
+    if truthy(InCombatLockdown) or truthy(UnitAffectingCombat, "player") then return true end
+    if truthy(IsInInstance) then return true end
+    return chatLocked()
+end
+
+local function sendThanks()
+    thankTimer = false
+    if #thankQueue == 0 then return end
+    local wait = THANK_GAP - (clock() - lastThank)
+    if wait > 0 then
+        thankTimer = true
+        C_Timer.After(wait, sendThanks)
+        return
+    end
+    local item = table.remove(thankQueue, 1)
+    if opt("thankBuffs") and not thankBlocked() and type(DoEmote) == "function" then
+        -- no name: only while nothing is targeted, or it would go to the target
+        if item.name or not truthy(UnitExists, "target") then
+            thankedAt[item.key] = clock()
+            lastThank = clock()
+            pcall(DoEmote, "THANK", item.name)
+        end
+    end
+    if #thankQueue > 0 then
+        thankTimer = true
+        C_Timer.After(THANK_GAP, sendThanks)
+    end
+end
+
+local function queueThanks(key, name)
+    local at = thankedAt[key]
+    if at and clock() - at < THANK_AGAIN then return end
+    for _, item in ipairs(thankQueue) do
+        if item.key == key then return end
+    end
+    if #thankQueue >= THANK_QUEUE then return end
+    thankQueue[#thankQueue + 1] = { key = key, name = name }
+    if not thankTimer then sendThanks() end
+end
+
+-- the name to thank for a unit that is another player outside my group
+-- (nil: not such a player); the character name only, without a family name
+local function strangerName(unit)
+    if type(unit) ~= "string" or unit == "" or isSecret(unit) then return nil end
+    if not truthy(UnitExists, unit) or not truthy(UnitIsPlayer, unit) then return nil end
+    if truthy(UnitIsUnit, unit, "player") or truthy(UnitInParty, unit) or truthy(UnitInRaid, unit) then return nil end
+    local ok, name = pcall(UnitName, unit)
+    if not ok or type(name) ~= "string" or name == "" or isSecret(name) or name == (_G.UNKNOWNOBJECT or "") then return nil end
+    return name
+end
+
+local function field(aura, key)
+    local ok, value = pcall(function() return aura[key] end)
+    if not ok or isSecret(value) then return nil end
+    return value
+end
+
+local function onPlayerAura(info)
+    if not opt("thankBuffs") or clock() < quietUntil then return end
+    if type(info) ~= "table" or info.isFullUpdate or type(info.addedAuras) ~= "table" then return end
+    if thankBlocked() then return end
+    for _, aura in ipairs(info.addedAuras) do
+        if type(aura) == "table" and field(aura, "isHelpful") == true and field(aura, "isFromPlayerOrPlayerPet") == true then
+            local unit = field(aura, "sourceUnit")
+            if type(unit) == "string" and unit ~= "" then
+                local name = strangerName(unit)
+                if name then
+                    local okGuid, guid = pcall(UnitGUID, unit)
+                    local key = (okGuid and type(guid) == "string" and not isSecret(guid)) and guid or name
+                    queueThanks(key, name)
+                end
+            elseif unit == nil then
+                -- cast by a player the game has no unit for (not me, my pet or my group: those have units)
+                queueThanks("?", nil)
+            end
+        end
+    end
+end
+
+local auraEvents = CreateFrame("Frame")
+pcall(auraEvents.RegisterUnitEvent, auraEvents, "UNIT_AURA", "player")
+pcall(auraEvents.RegisterEvent, auraEvents, "PLAYER_ENTERING_WORLD")
+auraEvents:SetScript("OnEvent", function(_, event, _, info)
+    if event == "PLAYER_ENTERING_WORLD" then
+        -- auras coming back after a login, /reload or zone change are not new
+        quietUntil = clock() + 5
+        return
+    end
+    pcall(onPlayerAura, info)
 end)

@@ -54,6 +54,7 @@ ns.DEFAULTS = {
     alertSound     = true,
     greetSelf      = true,
     greetWelcome   = true,
+    thankBuffs     = true,
     showIcon       = true,
     selected       = "all",
     tab            = "browse",
