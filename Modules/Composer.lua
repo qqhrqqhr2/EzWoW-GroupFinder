@@ -473,6 +473,12 @@ end
 -----------------------------------------------------------------------------
 function ns.WhisperPlayer(name)
     if type(name) ~= "string" or name == "" then return end
+    -- with the gamepad UI on, the chat box opened from addon code breaks the game's
+    -- gamepad navigation until the interface is reloaded (Libs/EzWoWGamePad): the name only
+    if ns.GamePad and ns.GamePad.IsActive and ns.GamePad.IsActive() then
+        ns.Print(ns:L("padWhisper"):format(name))
+        return
+    end
     -- names can contain a space (surname), so set the whisper target directly
     -- instead of typing "/w name", which would cut the name at the space
     local sendTell = (ChatFrameUtil and type(ChatFrameUtil.SendTell) == "function" and ChatFrameUtil.SendTell)
