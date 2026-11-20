@@ -65,6 +65,29 @@ function ns.FindLFGServerChannel()
     return nil
 end
 
+-- The game's General channel in every client language ("공개 - 오그리마": the
+-- part before " - ", compared in lower case with spaces removed).
+local GENERAL_NAMES = {
+    "공개", "general", "allgemein", "général", "geral", "generale", "общий", "综合", "綜合",
+}
+
+function ns.IsGeneralChannelName(name)
+    if type(name) ~= "string" or ns.IsSecret(name) then return false end
+    local key = compact(name:match("^(.-)%s+%-%s") or name)
+    for _, word in ipairs(GENERAL_NAMES) do
+        if key == word then return true end
+    end
+    return false
+end
+
+-- The joined General channel, if any.
+function ns.GetJoinedGeneralChannel()
+    for _, channel in ipairs(ns.GetJoinedChannels()) do
+        if ns.IsGeneralChannelName(channel.name) then return channel end
+    end
+    return nil
+end
+
 -- Channel names the player typed in the settings ("파티, 던전팟" -> { "파티", "던전팟" }).
 function ns.GetCustomChannelNames()
     local out = {}
@@ -98,31 +121,43 @@ local lastLoadingTime = 0
 
 -----------------------------------------------------------------------------
 -- Channel numbers: a new channel gets the lowest free number, and the client
--- keeps the numbers for the next login. Joined before the game's own channels
--- (General, Trade, ...), the group-finding channel would take number 1 and
--- push General down for good. So it is joined only once one of the game's
--- channels is there, and a group-finding channel that already sits in front
--- of them is swapped behind the first one (once per character).
+-- keeps the numbers for the next login. Joined before General, the
+-- group-finding channel takes number 1 and General drops out of the list for
+-- good (it is not joined again at the next login). Trade and the other game
+-- channels often come in a few seconds before General, so they do not count:
+-- other channels are joined only once General is there (or after a minute,
+-- for a player who left General), and never sooner than JOIN_DELAY seconds
+-- after a loading screen. A group-finding channel that already sits in front
+-- of General is swapped behind it (once per character).
 -----------------------------------------------------------------------------
--- the game's own channel (not group finding) the player is in with the lowest number
-local function firstGameChannel()
-    local bases = {}
-    for _, name in ipairs(ns.GetServerChannels()) do
-        if not ns.IsLFGChannelName(name) then bases[#bases + 1] = name end
-    end
-    local best
-    for _, channel in ipairs(ns.GetJoinedChannels()) do
-        local name = channel.name
-        if not ns.IsLFGChannelName(name) then
-            -- "General - Elwynn Forest": zone channels carry the zone after " - "
-            local isGame = name:find(" - ", 1, true) ~= nil
-            for _, base in ipairs(bases) do
-                if name == base or name:sub(1, #base + 3) == base .. " - " then isGame = true break end
-            end
-            if isGame and (not best or channel.id < best.id) then best = channel end
-        end
-    end
-    return best
+local JOIN_DELAY = 15      -- seconds after a loading screen before joining
+local GENERAL_WAIT = 60    -- seconds after login to wait for General
+local CHECK_EVERY = 3
+local ORDER_FIX = 2        -- ns.db.lfgOrderFixed value of this check (true: the old check, done again)
+
+local function nowTime()
+    return type(GetTime) == "function" and GetTime() or 0
+end
+
+local function inInstance()
+    if type(IsInInstance) ~= "function" then return false end
+    local ok, inside = pcall(IsInInstance)
+    return ok and inside == true
+end
+
+local worldAt, firstWorldAt = nil, nil   -- the last / the first loading screen of this session
+
+-- "ready": others may join now without taking General's number;
+-- "wait": check again soon; "later": not here (an instance), the next loading screen checks again
+local function channelState()
+    if not worldAt then return "later" end
+    local now = nowTime()
+    if now - worldAt < JOIN_DELAY then return "wait" end
+    if ns.GetJoinedGeneralChannel() then return "ready" end
+    if now - (firstWorldAt or worldAt) < GENERAL_WAIT then return "wait" end
+    -- General left on purpose, or not offered here
+    if inInstance() then return "later" end
+    return "ready"
 end
 
 local function characterKey()
@@ -141,26 +176,36 @@ local function savedLeft(value)
     return ns.db.lfgLeft[key] == true
 end
 
+-- Puts General in front of a group-finding channel that took a lower number
+-- (e.g. 1 when General came in late, or after /join 공개). Once per character,
+-- so a player's own order afterwards stays.
 -- true when nothing is left to do (done now, done before, or not needed)
 local function fixLFGOrder()
     local key = characterKey()
     if not (key and ns.db) then return false end
     if type(ns.db.lfgOrderFixed) ~= "table" then ns.db.lfgOrderFixed = {} end
-    if ns.db.lfgOrderFixed[key] then return true end
-    local lfg, first = ns.GetJoinedLFGChannel(), firstGameChannel()
-    if not (lfg and first) then return false end
+    if ns.db.lfgOrderFixed[key] == ORDER_FIX then return true end
+    local lfg, general = ns.GetJoinedLFGChannel(), ns.GetJoinedGeneralChannel()
+    if not (lfg and general) then return false end
     local swap = C_ChatInfo and type(C_ChatInfo.SwapChatChannelsByChannelIndex) == "function"
         and C_ChatInfo.SwapChatChannelsByChannelIndex
-    if swap and lfg.id < first.id then
+    if swap and lfg.id < general.id then
         if InCombatLockdown and InCombatLockdown() then return false end  -- retried after combat
-        pcall(swap, lfg.id, first.id)
+        pcall(swap, lfg.id, general.id)
     end
-    ns.db.lfgOrderFixed[key] = true
+    ns.db.lfgOrderFixed[key] = ORDER_FIX
     return true
 end
 
-local GAME_CHANNEL_WAIT = 30   -- seconds to wait for the game's channels after login
-local waitedFor = 0
+local checkQueued = false
+local function checkLater(seconds)
+    if checkQueued or not (C_Timer and C_Timer.After) then return end
+    checkQueued = true
+    C_Timer.After(seconds, function()
+        checkQueued = false
+        ns.EnsureLFGChannel()
+    end)
+end
 
 -- Joins the group-finding channel and the player's own channels in the background
 -- (they are not added to any chat window; the addon still reads them).
@@ -173,32 +218,24 @@ function ns.EnsureLFGChannel(fromOption)
         savedLeft(false)
     end
     if savedLeft() then lfgLeftByPlayer = true end
-    local function retryLater()
-        if waitedFor < GAME_CHANNEL_WAIT then
-            waitedFor = waitedFor + 3
-            C_Timer.After(3, function() ns.EnsureLFGChannel() end)
-        end
-    end
-    -- the game's own channels are there (or we stopped waiting): others may join now
-    -- without taking their numbers
-    local gameReady = firstGameChannel() ~= nil or waitedFor >= GAME_CHANNEL_WAIT
-    local customs = ns.GetCustomChannelNames()
-    if gameReady then
-        for _, name in ipairs(customs) do joinChannel(name) end
-    end
     if ns.GetJoinedLFGChannel() then
         lfgJoinedOnce = true
-        if not fixLFGOrder() or (not gameReady and #customs > 0) then retryLater() end
-    elseif ns.db.autoJoinLFG and not lfgJoinedOnce and not lfgLeftByPlayer then
-        -- the game's own channels are not there yet: wait so they keep their numbers
-        if not gameReady then retryLater() return end
+        fixLFGOrder()
+    end
+    local state = channelState()
+    if state == "wait" then
+        local left = worldAt and (JOIN_DELAY - (nowTime() - worldAt)) or 0
+        checkLater(left > 0 and left or CHECK_EVERY)
+        return
+    elseif state == "later" then
+        return
+    end
+    for _, name in ipairs(ns.GetCustomChannelNames()) do joinChannel(name) end
+    if not ns.GetJoinedLFGChannel() and ns.db.autoJoinLFG and not lfgJoinedOnce and not lfgLeftByPlayer then
         -- the same as typing /join 파티찾기 (or /join LookingForGroup)
         local locale = type(GetLocale) == "function" and GetLocale() or ""
         local name = ns.FindLFGServerChannel() or (locale == "koKR" and "파티찾기" or "LookingForGroup")
         joinChannel(name)
-    elseif not gameReady and #customs > 0 then
-        retryLater()
-        return
     end
     C_Timer.After(2, function() if ns.NotifyPostsChanged then ns.NotifyPostsChanged() end end)
 end
@@ -216,10 +253,6 @@ function ns.PrintChannels()
     ns.Print(ns:L("channelsLFG") .. ": " .. (lfg or "-"))
 end
 
-local function nowTime()
-    return type(GetTime) == "function" and GetTime() or 0
-end
-
 local watcher = CreateFrame("Frame")
 pcall(watcher.RegisterEvent, watcher, "PLAYER_ENTERING_WORLD")
 pcall(watcher.RegisterEvent, watcher, "PLAYER_LEAVING_WORLD")
@@ -229,10 +262,12 @@ pcall(watcher.RegisterEvent, watcher, "PLAYER_REGEN_ENABLED")
 watcher:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_ENTERING_WORLD" then
         lastLoadingTime = nowTime()
+        worldAt = lastLoadingTime
+        firstWorldAt = firstWorldAt or worldAt
         local isInitialLogin = ...
         if isInitialLogin == true then savedLeft(false) end
-        -- the default channels are joined a few seconds after login
-        C_Timer.After(6, function() ns.EnsureLFGChannel() end)
+        -- the game's channels come in during the first seconds after a loading screen
+        checkLater(JOIN_DELAY)
     elseif event == "PLAYER_LEAVING_WORLD" then
         lastLoadingTime = nowTime()
     elseif event == "PLAYER_REGEN_ENABLED" then
@@ -254,6 +289,11 @@ watcher:SetScript("OnEvent", function(_, event, ...)
             lfgJoinedOnce = true
             lfgLeftByPlayer = false
             savedLeft(false)
+            C_Timer.After(1, fixLFGOrder)
+        elseif (notice == "YOU_JOINED" or notice == "YOU_CHANGED")
+            and (ns.IsGeneralChannelName(channelName) or ns.IsGeneralChannelName(channelString)) then
+            -- General came back (/join 공개): put it in front of the group-finding channel
+            C_Timer.After(1, fixLFGOrder)
         end
     elseif ns.NotifyPostsChanged then
         ns.NotifyPostsChanged()
