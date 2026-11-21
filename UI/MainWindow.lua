@@ -1034,6 +1034,22 @@ local function buildWindow()
     window.composeTab:SetPoint("LEFT", window.browseTab, "RIGHT", 6, 0)
     window.composeTab:SetScript("OnClick", function() setTab("compose") end)
 
+    -- the group-finding channel: join it here (also after leaving it), its number once in
+    window.lfgBtn = UIKit:CreateButton(window, 170, 26, "", true, "GameFontHighlightSmall")
+    window.lfgBtn:SetPoint("TOPRIGHT", -12, -66)
+    window.lfgBtn:SetScript("OnClick", function()
+        if ns.GetJoinedLFGChannel() then return end
+        ns.JoinLFGChannelNow()
+        -- the join (and a held number 1) takes a moment; the label follows
+        for _, wait in ipairs({ 1, 3, 6 }) do
+            C_Timer.After(wait, function() ns.RefreshMainWindow() end)
+        end
+    end)
+    window.lfgBtn.tooltip = function()
+        local lfg = ns.GetJoinedLFGChannel()
+        return lfg and string.format(ns:L("lfgInTip"), lfg.id) or ns:L("lfgJoinTip")
+    end
+
     buildBrowse(window)
     buildCompose(window)
 
@@ -1078,6 +1094,10 @@ function ns.RefreshMainWindow()
     window.browseTab:SetActive(not isCompose)
     window.composeTab:SetLabel(ns:L("tabCompose"))
     window.composeTab:SetActive(isCompose)
+    local lfg = ns.GetJoinedLFGChannel()
+    window.lfgBtn:SetLabel(lfg and string.format(ns:L("lfgInBtn"), lfg.id) or ns:L("lfgJoinBtn"))
+    window.lfgBtn.accent = not lfg
+    window.lfgBtn:SetEnabledState(not lfg)
 
     browse.panel:SetShown(not isCompose)
     compose.panel:SetShown(isCompose)

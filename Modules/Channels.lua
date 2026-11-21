@@ -112,12 +112,97 @@ local function joinChannel(name)
     if join then pcall(join, name) end
 end
 
+-- Number 1 is General's. When General is not in (a player who left it, or a character whose
+-- channel list lost it after another channel took number 1), a placeholder channel holds
+-- number 1 while the group-finding channel and the player's own channels join, and leaves
+-- a few seconds later: they never take General's number, and /join 공개 gets it back.
+local HOLD_NAME = "EzWoWGFHold"
+local holding = false
+
+local function after(seconds, fn)
+    if C_Timer and C_Timer.After then C_Timer.After(seconds, fn) else fn() end
+end
+
+-- name of the channel on this number (nil: free)
+local function channelAt(index)
+    local ok, id, name = pcall(GetChannelName, index)
+    if ok and type(id) == "number" and id == index and type(name) == "string" and not ns.IsSecret(name) then
+        return name
+    end
+    return nil
+end
+
+local function isHoldName(name)
+    return type(name) == "string" and not ns.IsSecret(name) and name:lower():find(HOLD_NAME:lower(), 1, true) == 1
+end
+
+local function leaveChannel(name)
+    local leave = (C_ChatInfo and type(C_ChatInfo.LeaveChannelByName) == "function" and C_ChatInfo.LeaveChannelByName)
+        or (type(LeaveChannelByName) == "function" and LeaveChannelByName)
+    if leave and isJoined(name) then pcall(leave, name) end
+end
+
+-- Runs joinFn with number 1 held when General is out and number 1 is free (as it is otherwise).
+local function withFirstSlotHeld(joinFn)
+    if holding then return end
+    if ns.GetJoinedGeneralChannel() or channelAt(1) then joinFn() return end
+    holding = true
+    local join = (type(JoinTemporaryChannel) == "function" and JoinTemporaryChannel)
+        or (C_ChatInfo and type(C_ChatInfo.JoinChannelByName) == "function" and C_ChatInfo.JoinChannelByName)
+        or (type(JoinChannelByName) == "function" and JoinChannelByName)
+    if join then pcall(join, HOLD_NAME) end
+    local tries = 0
+    local function step()
+        tries = tries + 1
+        if isHoldName(channelAt(1)) or tries >= 8 then
+            -- (the placeholder did not get number 1 after 4 s: join anyway, as before)
+            joinFn()
+            after(4, function()
+                leaveChannel(HOLD_NAME)
+                holding = false
+            end)
+        else
+            after(0.5, step)
+        end
+    end
+    after(0.5, step)
+end
+
+-- The placeholder's join and leave notices are not shown.
+do
+    local addFilter = (ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter) or _G.ChatFrame_AddMessageEventFilter
+    if type(addFilter) == "function" then
+        -- (chat frame, event, then the event's arguments: 4 = "1. 이름", 9 = the channel's base name)
+        local function holdFilter(_, _, _, _, _, channelString, _, _, _, _, channelBaseName)
+            return isHoldName(channelBaseName) or isHoldName(channelString)
+        end
+        for _, event in ipairs({ "CHAT_MSG_CHANNEL_NOTICE", "CHAT_MSG_CHANNEL_NOTICE_USER",
+            "CHAT_MSG_CHANNEL_JOIN", "CHAT_MSG_CHANNEL_LEAVE", "CHAT_MSG_CHANNEL" }) do
+            pcall(addFilter, event, holdFilter)
+        end
+    end
+end
+
 -- The group-finding channel is joined automatically only until the player has been in it
 -- once this session; if the player leaves it, it stays left until the next login or until
 -- the auto-join option is switched again.
 local lfgJoinedOnce = false
 local lfgLeftByPlayer = false
 local lastLoadingTime = 0
+local movingLFG = false       -- the addon left the group-finding channel itself (to move it off number 1)
+local movedThisSession = false
+
+-- A leave of the group-finding channel that counts as the player's choice to stay out.
+-- Not one from number 1: that frees General's number (2026-11-21, /leave 1 to get 공개 back
+-- kept the channel out until the next login). index: the channel's number (nil: unknown);
+-- channelString: "1. 파티찾기" when the number is not given on its own.
+local function leftOnPurpose(index, channelString)
+    if type(index) ~= "number" or ns.IsSecret(index) or index <= 0 then
+        index = type(channelString) == "string" and not ns.IsSecret(channelString)
+            and tonumber(channelString:match("^%s*(%d+)%.")) or nil
+    end
+    return index ~= 1
+end
 
 -----------------------------------------------------------------------------
 -- Channel numbers: a new channel gets the lowest free number, and the client
@@ -207,6 +292,19 @@ local function checkLater(seconds)
     end)
 end
 
+-- The window's join button: clears the player's earlier leave (saved through /reload) and
+-- joins now, whatever the auto-join option says; number 1 is held while General is out.
+-- true: joined already, or the join was started.
+function ns.JoinLFGChannelNow()
+    lfgLeftByPlayer = false
+    savedLeft(false)
+    if ns.GetJoinedLFGChannel() then return true end
+    local locale = type(GetLocale) == "function" and GetLocale() or ""
+    local name = ns.FindLFGServerChannel() or (locale == "koKR" and "파티찾기" or "LookingForGroup")
+    withFirstSlotHeld(function() joinChannel(name) end)
+    return true
+end
+
 -- Joins the group-finding channel and the player's own channels in the background
 -- (they are not added to any chat window; the addon still reads them).
 -- fromOption: the auto-join option was just switched (clears a remembered leave).
@@ -230,12 +328,33 @@ function ns.EnsureLFGChannel(fromOption)
     elseif state == "later" then
         return
     end
-    for _, name in ipairs(ns.GetCustomChannelNames()) do joinChannel(name) end
-    if not ns.GetJoinedLFGChannel() and ns.db.autoJoinLFG and not lfgJoinedOnce and not lfgLeftByPlayer then
-        -- the same as typing /join 파티찾기 (or /join LookingForGroup)
-        local locale = type(GetLocale) == "function" and GetLocale() or ""
-        local name = ns.FindLFGServerChannel() or (locale == "koKR" and "파티찾기" or "LookingForGroup")
-        joinChannel(name)
+    local locale = type(GetLocale) == "function" and GetLocale() or ""
+    local lfgName = ns.FindLFGServerChannel() or (locale == "koKR" and "파티찾기" or "LookingForGroup")
+    -- the group-finding channel sits on General's number 1 while General is out (it came in
+    -- before General, or a character's list lost General): move it behind, once a session
+    local lfg = ns.GetJoinedLFGChannel()
+    if lfg and lfg.id == 1 and not ns.GetJoinedGeneralChannel() and not movedThisSession and not holding then
+        movedThisSession = true
+        movingLFG = true
+        leaveChannel(lfg.name)
+        after(1.5, function()
+            withFirstSlotHeld(function() joinChannel(lfgName) end)
+            after(8, function() movingLFG = false end)
+        end)
+        return
+    end
+    local need = not ns.GetJoinedLFGChannel() and ns.db.autoJoinLFG and not lfgJoinedOnce and not lfgLeftByPlayer
+    for _, name in ipairs(ns.GetCustomChannelNames()) do
+        if not isJoined(name) then need = true end
+    end
+    if need then
+        withFirstSlotHeld(function()
+            for _, name in ipairs(ns.GetCustomChannelNames()) do joinChannel(name) end
+            if not ns.GetJoinedLFGChannel() and ns.db.autoJoinLFG and not lfgJoinedOnce and not lfgLeftByPlayer then
+                -- the same as typing /join 파티찾기 (or /join LookingForGroup)
+                joinChannel(lfgName)
+            end
+        end)
     end
     C_Timer.After(2, function() if ns.NotifyPostsChanged then ns.NotifyPostsChanged() end end)
 end
@@ -280,10 +399,16 @@ watcher:SetScript("OnEvent", function(_, event, ...)
         if ns.IsSecret(notice) then return end
         local isLFG = ns.IsLFGChannelName(channelName) or ns.IsLFGChannelName(channelString)
         if isLFG and notice == "YOU_LEFT" then
-            -- ignore leaves the client makes around a loading screen
-            if nowTime() - lastLoadingTime > 5 then
-                lfgLeftByPlayer = true
-                savedLeft(true)
+            -- ignore leaves the client makes around a loading screen and the addon's own move
+            if nowTime() - lastLoadingTime > 5 and not movingLFG then
+                if leftOnPurpose(select(8, ...), channelString) then
+                    lfgLeftByPlayer = true
+                    savedLeft(true)
+                else
+                    -- left from General's number 1: joined again behind General (number 1 held)
+                    lfgJoinedOnce = false
+                    checkLater(CHECK_EVERY)
+                end
             end
         elseif isLFG and (notice == "YOU_JOINED" or notice == "YOU_CHANGED") then
             lfgJoinedOnce = true

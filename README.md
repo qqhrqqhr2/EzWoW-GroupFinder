@@ -15,7 +15,7 @@ Collects group posts from chat by dungeon and helps you write and send your own.
 
 ### 파티 찾기
 - 채팅 채널(공개·파티찾기·거래 등), 일반 대화·외치기, 길드 대화(선택)에서 파티 모집 글을 자동으로 모읍니다.
-- 서버 파티찾기 채널에는 접속할 때마다 한 번 자동으로 들어갑니다. 공개·거래 같은 기본 채널의 번호는 밀어내지 않습니다. 직접 나가면 다음 접속까지 다시 들어가지 않습니다.
+- 서버 파티찾기 채널에는 접속할 때마다 한 번 자동으로 들어갑니다. 공개·거래 같은 기본 채널의 번호는 밀어내지 않습니다(공개 채널이 없을 때도 1번은 비워 둡니다). 직접 나가면 다음 접속까지 다시 들어가지 않으며, 창 오른쪽 위의 "파티찾기 채널 입장" 버튼으로 언제든 다시 들어갈 수 있습니다.
 - 설정에 적어 둔 채널에도 보이지 않게 들어가 글을 모읍니다(채팅창에는 표시되지 않음).
 - 던전별로 나눠 보여 주고, 지금 레벨에 맞는 던전은 레벨 범위를 민트색으로 표시합니다. `내 레벨 추천`에서 한 번에 볼 수 있습니다.
 - 목록은 구분·던전·포지션·인원·레벨·시간 칸으로 나뉘고, 글마다 구인/구직/버스, 필요한 역할(탱·힐·딜), 인원, 레벨, 올린 시간이 표시됩니다.
@@ -64,7 +64,7 @@ Collects group posts from chat by dungeon and helps you write and send your own.
 
 ### Find Group
 - Collects group posts from chat channels (General, LFG, Trade, ...), Say/Yell and, optionally, guild chat.
-- Joins the server's LFG channel once per login without pushing General, Trade and other channels off their numbers. If you leave it, it stays left until your next login.
+- Joins the server's LFG channel once per login without pushing General, Trade and other channels off their numbers (number 1 stays free for General even when General is not in). If you leave it, it stays left until your next login; the "Join LFG channel" button at the top right of the window joins it again at any time.
 - Also joins the channels you list in the settings in the background (hidden from your chat windows).
 - Sorted by dungeon; level ranges that suit you are highlighted in mint, and `For My Level` shows them all at once.
 - The list has type, dungeon, role, size, level and time columns: each post shows LFM/LFG/boost, roles needed, group size, level and age.
