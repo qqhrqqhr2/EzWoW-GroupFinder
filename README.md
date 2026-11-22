@@ -7,7 +7,7 @@ Collects group posts from chat by dungeon and helps you write and send your own.
 
 ## 한국어
 
-![파티 찾기 창](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/ui_ko.png)
+![모집 글 쓰기](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/ui_ko.png)
 
 ![설정창](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/settings_ko.png)
 
@@ -56,7 +56,7 @@ Collects group posts from chat by dungeon and helps you write and send your own.
 
 ## English
 
-![Finder window](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/ui_en.png)
+![Writing a post](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/ui_en.png)
 
 ![Settings window](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/settings_en.png)
 
