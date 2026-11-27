@@ -9,9 +9,9 @@ CurseForge summary (KO): 채팅의 파티 모집 글을 던전별로 모아 보�
 
 A group finder for WoW Forever. It collects the group posts people write in chat, sorts them by dungeon and shows the roles, size and level each group needs. Whisper or invite with one click, get alerts for the dungeons you want, write your own post in a few clicks, and say hello automatically when a party forms.
 
-![Writing a post](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/ui_en.png)
+![Writing a post](https://raw.githubusercontent.com/ezwow-addons/EzWoW-GroupFinder/master/docs/images/ui_en.png)
 
-![Settings window](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/settings_en.png)
+![Settings window](https://raw.githubusercontent.com/ezwow-addons/EzWoW-GroupFinder/master/docs/images/settings_en.png)
 
 *In-game screenshots with the addon set to English. The game client is Korean, so game text such as zone, item and spell names stays Korean. Character and player names and chat text are blurred.*
 
@@ -72,9 +72,9 @@ Languages: English, 한국어, Deutsch, Français, Español, Русский, 简
 
 WoW Forever용 파티 찾기 애드온입니다. 채팅에 올라온 파티 모집 글을 모아 던전별로 나누고, 그룹마다 필요한 역할·인원·레벨을 보여 줍니다. 클릭 한 번으로 귓속말·초대를 하고, 원하는 던전의 새 글 알림을 받고, 모집 글을 쉽게 써서 보내며, 파티가 꾸려지면 자동으로 인사합니다.
 
-![모집 글 쓰기](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/ui_ko.png)
+![모집 글 쓰기](https://raw.githubusercontent.com/ezwow-addons/EzWoW-GroupFinder/master/docs/images/ui_ko.png)
 
-![설정창](https://raw.githubusercontent.com/qqhrqqhr2/EzWoW-GroupFinder/master/docs/images/settings_ko.png)
+![설정창](https://raw.githubusercontent.com/ezwow-addons/EzWoW-GroupFinder/master/docs/images/settings_ko.png)
 
 *실제 게임 화면입니다(WoW Forever, 한국어 클라이언트). 캐릭터 · 다른 플레이어 이름과 채팅 내용은 가렸습니다.*
 
